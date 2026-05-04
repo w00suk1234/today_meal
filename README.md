@@ -23,17 +23,13 @@
 
 ## 화면 미리보기
 
-| 홈 | 추가: 사진 | 추가: 저장 |
+| 홈 | 추가 | 기록 |
 | --- | --- | --- |
-| <img src="docs/screenshots/home.png" width="280" alt="홈 화면"> | <img src="docs/screenshots/add-photo.png" width="280" alt="식단 추가 사진 화면"> | <img src="docs/screenshots/add-save.png" width="280" alt="식단 추가 저장 화면"> |
+| <img src="docs/screenshots/home.png" width="280" alt="홈 화면"> | <img src="docs/screenshots/add-photo.png" width="280" alt="식단 추가 화면"> | <img src="docs/screenshots/records.png" width="280" alt="식단 기록 화면"> |
 
-| 기록 | 리포트 | 몸상태 |
+| 리포트 | 몸상태 | 설정 |
 | --- | --- | --- |
-| <img src="docs/screenshots/records.png" width="280" alt="식단 기록 화면"> | <img src="docs/screenshots/report.png" width="280" alt="오늘 리포트 화면"> | <img src="docs/screenshots/health.png" width="280" alt="내 몸 상태 화면"> |
-
-| 설정 |
-| --- |
-| <img src="docs/screenshots/settings.png" width="280" alt="설정 화면"> |
+| <img src="docs/screenshots/report.png" width="280" alt="오늘 리포트 화면"> | <img src="docs/screenshots/health.png" width="280" alt="내 몸 상태 화면"> | <img src="docs/screenshots/settings.png" width="280" alt="설정 화면"> |
 
 ## 기술 스택
 
