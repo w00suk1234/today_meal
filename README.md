@@ -23,27 +23,13 @@
 
 ## 화면 미리보기
 
-GitHub README에서 텍스트가 작게 뭉개지지 않도록 화면별 이미지를 크게 배치했습니다.
+| 홈 | 식단 추가 | 기록 |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.png" width="220" alt="홈 화면"> | <img src="docs/screenshots/add.png" width="220" alt="식단 추가 화면"> | <img src="docs/screenshots/records.png" width="220" alt="기록 화면"> |
 
-### 홈
-
-<img src="docs/screenshots/home.png" width="360" alt="홈 화면">
-
-### 식단 추가
-
-<img src="docs/screenshots/add.png" width="360" alt="식단 추가 화면">
-
-### 기록
-
-<img src="docs/screenshots/records.png" width="360" alt="기록 화면">
-
-### 리포트
-
-<img src="docs/screenshots/report.png" width="360" alt="리포트 화면">
-
-### 내 몸 상태
-
-<img src="docs/screenshots/health.png" width="360" alt="내 몸 상태 화면">
+| 리포트 | 내 몸 상태 |
+| --- | --- |
+| <img src="docs/screenshots/report.png" width="220" alt="리포트 화면"> | <img src="docs/screenshots/health.png" width="220" alt="내 몸 상태 화면"> |
 
 ## 기술 스택
 

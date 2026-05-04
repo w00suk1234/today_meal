@@ -7,6 +7,7 @@ $fontTitle = New-Object System.Drawing.Font("Malgun Gothic", 24, [System.Drawing
 $fontH2 = New-Object System.Drawing.Font("Malgun Gothic", 16, [System.Drawing.FontStyle]::Bold)
 $fontBody = New-Object System.Drawing.Font("Malgun Gothic", 12, [System.Drawing.FontStyle]::Regular)
 $fontSmall = New-Object System.Drawing.Font("Malgun Gothic", 9, [System.Drawing.FontStyle]::Regular)
+$fontNav = New-Object System.Drawing.Font("Malgun Gothic", 10, [System.Drawing.FontStyle]::Bold)
 
 function Brush($hex) {
   return New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml($hex))
@@ -14,6 +15,14 @@ function Brush($hex) {
 
 function PenColor($hex, $width = 1) {
   return New-Object System.Drawing.Pen ([System.Drawing.ColorTranslator]::FromHtml($hex)), $width
+}
+
+function NewPen($hex, $width = 2) {
+  $pen = New-Object System.Drawing.Pen ([System.Drawing.ColorTranslator]::FromHtml($hex), $width)
+  $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  return $pen
 }
 
 function RoundRectPath($x, $y, $w, $h, $r) {
@@ -51,6 +60,74 @@ function Chip($g, $text, $x, $y, $color = "#EAF3EF") {
   Text $g $text $fontSmall "#172026" ($x + 12) ($y + 6) 70 20
 }
 
+function DrawHomeIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $pts = @(
+    [System.Drawing.PointF]::new($x - 10, $y + 8),
+    [System.Drawing.PointF]::new($x, $y - 2),
+    [System.Drawing.PointF]::new($x + 10, $y + 8)
+  )
+  $g.DrawLines($pen, $pts)
+  $g.DrawRectangle($pen, $x - 7, $y + 8, 14, 12)
+  $pen.Dispose()
+}
+
+function DrawAddIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $g.DrawEllipse($pen, $x - 10, $y - 2, 20, 20)
+  $g.DrawLine($pen, $x, $y + 3, $x, $y + 13)
+  $g.DrawLine($pen, $x - 5, $y + 8, $x + 5, $y + 8)
+  $pen.Dispose()
+}
+
+function DrawRecordsIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $g.DrawRectangle($pen, $x - 9, $y, 18, 18)
+  $g.DrawLine($pen, $x - 9, $y + 5, $x + 9, $y + 5)
+  $g.DrawLine($pen, $x - 4, $y - 3, $x - 4, $y + 3)
+  $g.DrawLine($pen, $x + 4, $y - 3, $x + 4, $y + 3)
+  $pen.Dispose()
+}
+
+function DrawReportIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $g.DrawLine($pen, $x - 10, $y + 16, $x - 4, $y + 9)
+  $g.DrawLine($pen, $x - 4, $y + 9, $x + 2, $y + 12)
+  $g.DrawLine($pen, $x + 2, $y + 12, $x + 10, $y + 2)
+  $g.DrawLine($pen, $x + 8, $y + 2, $x + 10, $y + 2)
+  $g.DrawLine($pen, $x + 10, $y + 2, $x + 10, $y + 4)
+  $pen.Dispose()
+}
+
+function DrawHealthIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $g.DrawEllipse($pen, $x - 5, $y - 2, 10, 10)
+  $g.DrawArc($pen, $x - 12, $y + 8, 24, 16, 200, 140)
+  $pen.Dispose()
+}
+
+function DrawSettingsIcon($g, $x, $y, $color) {
+  $pen = NewPen $color 2
+  $g.DrawEllipse($pen, $x - 7, $y + 1, 14, 14)
+  $g.DrawEllipse($pen, $x - 2, $y + 6, 4, 4)
+  $g.DrawLine($pen, $x, $y - 3, $x, $y)
+  $g.DrawLine($pen, $x, $y + 16, $x, $y + 19)
+  $g.DrawLine($pen, $x - 11, $y + 8, $x - 8, $y + 8)
+  $g.DrawLine($pen, $x + 8, $y + 8, $x + 11, $y + 8)
+  $pen.Dispose()
+}
+
+function DrawNavIcon($g, $key, $x, $color) {
+  switch ($key) {
+    "home" { DrawHomeIcon $g $x 784 $color }
+    "add" { DrawAddIcon $g $x 784 $color }
+    "records" { DrawRecordsIcon $g $x 784 $color }
+    "report" { DrawReportIcon $g $x 784 $color }
+    "health" { DrawHealthIcon $g $x 784 $color }
+    "settings" { DrawSettingsIcon $g $x 784 $color }
+  }
+}
+
 function Nav($g, $active) {
   FillRound $g 0 764 390 80 0 "#EAF3EF"
   $items = @(
@@ -67,8 +144,8 @@ function Nav($g, $active) {
       FillRound $g ($x - 24) 774 48 34 17 "#CFEADF"
     }
     $color = if ($key -eq $active) { "#1F9D7A" } else { "#37413D" }
-    $g.FillEllipse((Brush $color), ($x - 5), 785, 10, 10)
-    Text $g $label $fontSmall "#172026" ($x - 24) 812 55 20
+    DrawNavIcon $g $key $x $color
+    Text $g $label $fontNav "#172026" ($x - 26) 812 58 22
   }
 }
 
