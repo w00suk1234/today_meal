@@ -1,0 +1,9 @@
+{
+  "dart.flutterSdkPath": null,
+  "dart.lineLength": 120,
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/.dart_tool": true,
+    "**/build": true
+  }
+}

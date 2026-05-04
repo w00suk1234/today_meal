@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>오늘식단 AI</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleName</key>
+  <string>today_meal_ai</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$(FLUTTER_BUILD_NAME)</string>
+  <key>CFBundleVersion</key>
+  <string>$(FLUTTER_BUILD_NUMBER)</string>
+  <key>LSRequiresIPhoneOS</key>
+  <true/>
+  <key>NSCameraUsageDescription</key>
+  <string>음식 사진을 식단 기록에 첨부하기 위해 카메라 접근이 필요합니다.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>음식 사진을 식단 기록에 첨부하기 위해 사진 접근이 필요합니다.</string>
+  <key>UIApplicationSupportsIndirectInputEvents</key>
+  <true/>
+  <key>UILaunchStoryboardName</key>
+  <string>LaunchScreen</string>
+  <key>UIMainStoryboardFile</key>
+  <string>Main</string>
+</dict>
+</plist>

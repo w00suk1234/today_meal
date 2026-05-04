@@ -1,0 +1,11 @@
+{
+  "name": "오늘식단 AI",
+  "short_name": "오늘식단 AI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F6F8FA",
+  "theme_color": "#1F9D7A",
+  "description": "음식 사진과 로컬 음식 DB로 식단을 기록하는 Flutter MVP",
+  "orientation": "portrait-primary",
+  "icons": []
+}
