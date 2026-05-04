@@ -23,13 +23,16 @@
 
 ## 화면 미리보기
 
-| 홈 | 식단 추가 | 기록 |
-| --- | --- | --- |
-| <img src="docs/screenshots/home.png" width="220" alt="홈 화면"> | <img src="docs/screenshots/add.png" width="220" alt="식단 추가 화면"> | <img src="docs/screenshots/records.png" width="220" alt="기록 화면"> |
+실제 앱 흐름을 포트폴리오 설명용 이미지로 정리했습니다. 추가 탭은 사진 선택과 저장 흐름이 길어 2장으로 나눴습니다.
 
-| 리포트 | 내 몸 상태 |
-| --- | --- |
-| <img src="docs/screenshots/report.png" width="220" alt="리포트 화면"> | <img src="docs/screenshots/health.png" width="220" alt="내 몸 상태 화면"> |
+| 탭 | 설명 | 미리보기 |
+| --- | --- | --- |
+| 홈 | 오늘 섭취 칼로리, 목표 대비 진행률, 탄단지, BMI, 식사 기록 상태를 한 번에 확인합니다. | <img src="docs/screenshots/home.png" width="420" alt="홈 화면"> |
+| 추가 | 음식 사진을 올리고 AI 후보 버튼, 식사 시간, 음식 검색, 저장 흐름을 진행합니다. | <img src="docs/screenshots/add-photo.png" width="420" alt="식단 추가 사진 화면"><br><br><img src="docs/screenshots/add-save.png" width="420" alt="식단 추가 저장 화면"> |
+| 기록 | 날짜별 총 칼로리와 아침/점심/저녁/간식 그룹별 식단 기록을 확인합니다. | <img src="docs/screenshots/records.png" width="420" alt="식단 기록 화면"> |
+| 리포트 | 외부 AI 없이 규칙 기반으로 칼로리, 탄단지, 식사 패턴 피드백을 제공합니다. | <img src="docs/screenshots/report.png" width="420" alt="오늘 리포트 화면"> |
+| 몸상태 | 닉네임, 성별, 키, 몸무게, 목표 체중, 활동량을 입력하고 BMI 등 추정 지표를 확인합니다. | <img src="docs/screenshots/health.png" width="420" alt="내 몸 상태 화면"> |
+| 설정 | 목표 칼로리와 기본 프로필을 저장하고 감량/유지/증량 목표를 선택합니다. | <img src="docs/screenshots/settings.png" width="420" alt="설정 화면"> |
 
 ## 기술 스택
 
