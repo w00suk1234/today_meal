@@ -18,8 +18,8 @@ class HealthRepository {
     if (client != null && userId != null) {
       try {
         final rows = await client.from('profiles').select().eq('user_id', userId).limit(1);
-        if (rows is List && rows.isNotEmpty) {
-          return HealthProfile.fromJson(rows.first as Map<String, dynamic>).recalculated();
+        if (rows.isNotEmpty) {
+          return HealthProfile.fromJson(rows.first).recalculated();
         }
       } catch (_) {
         // Local fallback keeps the web demo usable when Supabase is not configured yet.

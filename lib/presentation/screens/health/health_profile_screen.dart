@@ -72,14 +72,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           const AppSectionTitle('기본 정보'),
           TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: '닉네임')),
           const SizedBox(height: 12),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'male', label: Text('남성')),
-              ButtonSegment(value: 'female', label: Text('여성')),
-              ButtonSegment(value: 'other', label: Text('기타')),
-            ],
-            selected: {_gender},
-            onSelectionChanged: (value) => setState(() => _gender = value.first),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const {
+              'male': '남성',
+              'female': '여성',
+              'other': '기타',
+            }.entries.map((entry) {
+              return ChoiceChip(
+                label: Text(entry.value),
+                selected: _gender == entry.key,
+                onSelected: (_) => setState(() => _gender = entry.key),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -118,7 +124,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           ),
           const AppSectionTitle('활동과 목표'),
           DropdownButtonFormField<String>(
-            value: _activityLevel,
+            initialValue: _activityLevel,
             decoration: const InputDecoration(labelText: '활동량'),
             items: const [
               DropdownMenuItem(value: 'sedentary', child: Text('거의 활동 없음')),
@@ -130,14 +136,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             onChanged: (value) => setState(() => _activityLevel = value ?? 'light'),
           ),
           const SizedBox(height: 12),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'loss', label: Text('감량')),
-              ButtonSegment(value: 'maintain', label: Text('유지')),
-              ButtonSegment(value: 'gain', label: Text('증량')),
-            ],
-            selected: {_goalType},
-            onSelectionChanged: (value) => setState(() => _goalType = value.first),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const {
+              'loss': '감량',
+              'maintain': '유지',
+              'gain': '증량',
+            }.entries.map((entry) {
+              return ChoiceChip(
+                label: Text(entry.value),
+                selected: _goalType == entry.key,
+                onSelected: (_) => setState(() => _goalType = entry.key),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(

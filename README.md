@@ -21,6 +21,16 @@
 - Supabase 연동 준비 및 RLS SQL 포함
 - Flutter Web 데모 및 Android APK 빌드 구조
 
+## 화면 미리보기
+
+| 홈 | 식단 추가 | 기록 |
+| --- | --- | --- |
+| <img src="docs/screenshots/home.png" width="220" alt="홈 화면"> | <img src="docs/screenshots/add.png" width="220" alt="식단 추가 화면"> | <img src="docs/screenshots/records.png" width="220" alt="기록 화면"> |
+
+| 리포트 | 내 몸 상태 |
+| --- | --- |
+| <img src="docs/screenshots/report.png" width="220" alt="리포트 화면"> | <img src="docs/screenshots/health.png" width="220" alt="내 몸 상태 화면"> |
+
 ## 기술 스택
 
 - Flutter

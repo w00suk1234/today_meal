@@ -34,24 +34,22 @@ class ImagePickerCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onPickGallery,
-                    icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('사진 업로드'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onPickCamera,
-                    icon: const Icon(Icons.photo_camera_outlined),
-                    label: const Text('카메라 촬영'),
-                  ),
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onPickGallery,
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('사진 업로드'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onPickCamera,
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('카메라 촬영'),
+              ),
             ),
           ],
         ),

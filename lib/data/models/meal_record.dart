@@ -12,12 +12,10 @@ class MealRecord {
     required this.createdAt,
     required this.dateKey,
     this.imagePath,
-    DateTime? eatenAt,
-    DateTime? startedAt,
-    DateTime? finishedAt,
-  })  : eatenAt = eatenAt,
-        startedAt = startedAt,
-        finishedAt = finishedAt;
+    this.eatenAt,
+    this.startedAt,
+    this.finishedAt,
+  });
 
   final String id;
   final String foodId;

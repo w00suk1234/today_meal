@@ -26,7 +26,7 @@ class HomeScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
         children: [
-          Text(AppConstants.appName, style: AppTextStyles.title),
+          const Text(AppConstants.appName, style: AppTextStyles.title),
           const SizedBox(height: 4),
           Text(AppDateUtils.koreanDate(DateTime.now()), style: AppTextStyles.muted),
           const SizedBox(height: 18),

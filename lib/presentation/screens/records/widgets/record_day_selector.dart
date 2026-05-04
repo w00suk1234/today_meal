@@ -25,10 +25,9 @@ class RecordDaySelector extends StatelessWidget {
           children: [
             IconButton(onPressed: onPrevious, icon: const Icon(Icons.chevron_left)),
             Expanded(
-              child: TextButton.icon(
+              child: TextButton(
                 onPressed: onPick,
-                icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                label: Text(AppDateUtils.koreanDate(selectedDate), textAlign: TextAlign.center),
+                child: Text(AppDateUtils.koreanDate(selectedDate), textAlign: TextAlign.center),
               ),
             ),
             IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),

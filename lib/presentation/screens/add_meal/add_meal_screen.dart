@@ -489,14 +489,17 @@ class _TimeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      trailing: TextButton.icon(
-        onPressed: onTap,
-        icon: const Icon(Icons.schedule, size: 18),
-        label: Text(value),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          TextButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.schedule, size: 18),
+            label: Text(value),
+          ),
+        ],
       ),
     );
   }
