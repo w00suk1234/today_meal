@@ -7,7 +7,7 @@ $fontTitle = New-Object System.Drawing.Font("Malgun Gothic", 24, [System.Drawing
 $fontH2 = New-Object System.Drawing.Font("Malgun Gothic", 16, [System.Drawing.FontStyle]::Bold)
 $fontBody = New-Object System.Drawing.Font("Malgun Gothic", 12, [System.Drawing.FontStyle]::Regular)
 $fontSmall = New-Object System.Drawing.Font("Malgun Gothic", 9, [System.Drawing.FontStyle]::Regular)
-$fontNav = New-Object System.Drawing.Font("Malgun Gothic", 10, [System.Drawing.FontStyle]::Bold)
+$fontNav = New-Object System.Drawing.Font("Malgun Gothic", 11, [System.Drawing.FontStyle]::Bold)
 
 function Brush($hex) {
   return New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml($hex))
@@ -51,6 +51,15 @@ function FillRound($g, $x, $y, $w, $h, $r, $color) {
 function Text($g, $text, $font, $color, $x, $y, $w = 330, $h = 80) {
   $rect = New-Object System.Drawing.RectangleF($x, $y, $w, $h)
   $format = New-Object System.Drawing.StringFormat
+  $format.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
+  $g.DrawString($text, $font, (Brush $color), $rect, $format)
+}
+
+function CenterText($g, $text, $font, $color, $x, $y, $w, $h) {
+  $rect = New-Object System.Drawing.RectangleF($x, $y, $w, $h)
+  $format = New-Object System.Drawing.StringFormat
+  $format.Alignment = [System.Drawing.StringAlignment]::Center
+  $format.LineAlignment = [System.Drawing.StringAlignment]::Center
   $format.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
   $g.DrawString($text, $font, (Brush $color), $rect, $format)
 }
@@ -131,12 +140,12 @@ function DrawNavIcon($g, $key, $x, $color) {
 function Nav($g, $active) {
   FillRound $g 0 764 390 80 0 "#EAF3EF"
   $items = @(
-    @("홈", 32, "home"),
+    @("홈", 33, "home"),
     @("추가", 98, "add"),
     @("기록", 163, "records"),
     @("리포트", 228, "report"),
     @("몸상태", 293, "health"),
-    @("설정", 358, "settings")
+    @("설정", 357, "settings")
   )
   foreach ($item in $items) {
     $label = $item[0]; $x = [int]$item[1]; $key = $item[2]
@@ -145,7 +154,7 @@ function Nav($g, $active) {
     }
     $color = if ($key -eq $active) { "#1F9D7A" } else { "#37413D" }
     DrawNavIcon $g $key $x $color
-    Text $g $label $fontNav "#172026" ($x - 26) 812 58 22
+    CenterText $g $label $fontNav "#172026" ($x - 30) 812 60 24
   }
 }
 
