@@ -28,27 +28,29 @@ class AppBottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: const BoxDecoration(
-        color: AppColors.cardWhite,
-        border: Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-              color: AppColors.shadow, blurRadius: 10, offset: Offset(0, -3)),
-        ],
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < items.length; i++)
-            Expanded(
-              child: _BottomNavButton(
-                item: items[i],
-                selected: selectedIndex == i,
-                onTap: () => onSelected(i),
+    return ExcludeSemantics(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        decoration: const BoxDecoration(
+          color: AppColors.cardWhite,
+          border: Border(top: BorderSide(color: AppColors.border)),
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.shadow, blurRadius: 10, offset: Offset(0, -3)),
+          ],
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < items.length; i++)
+              Expanded(
+                child: _BottomNavButton(
+                  item: items[i],
+                  selected: selectedIndex == i,
+                  onTap: () => onSelected(i),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -69,10 +71,9 @@ class _BottomNavButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        excludeFromSemantics: true,
-        onTap: onTap,
+        onPointerUp: (_) => onTap(),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           margin: const EdgeInsets.symmetric(horizontal: 3),
