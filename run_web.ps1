@@ -1,27 +1,41 @@
-Write-Host "오늘식단 AI Flutter Web 테스트를 시작합니다." -ForegroundColor Cyan
+$ErrorActionPreference = "Stop"
 
-$flutter = Get-Command flutter -ErrorAction SilentlyContinue
-if (-not $flutter) {
-  Write-Host "flutter 명령어를 찾지 못했습니다." -ForegroundColor Red
-  Write-Host "VSCode를 완전히 껐다 켠 뒤 다시 실행하거나, Flutter SDK의 bin 폴더가 PATH에 있는지 확인하세요."
-  Write-Host "예: C:\dev\flutter\bin"
-  exit 1
+$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$localFlutter = Join-Path $projectRoot ".tooling\flutter\bin\flutter.bat"
+$chromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+if (Test-Path $localFlutter) {
+  $flutter = $localFlutter
+  $flutterRoot = Resolve-Path (Join-Path $projectRoot ".tooling\flutter")
+  $env:GIT_CONFIG_COUNT = "1"
+  $env:GIT_CONFIG_KEY_0 = "safe.directory"
+  $env:GIT_CONFIG_VALUE_0 = $flutterRoot.Path
+} else {
+  $flutterCommand = Get-Command flutter -ErrorAction SilentlyContinue
+  if (-not $flutterCommand) {
+    Write-Host "Flutter SDK was not found." -ForegroundColor Red
+    Write-Host "Install Flutter or run the Codex setup once to create .tooling\flutter."
+    exit 1
+  }
+  $flutter = $flutterCommand.Source
 }
 
-Write-Host "Flutter 위치: $($flutter.Source)" -ForegroundColor DarkGray
-
-Write-Host "1/3 Flutter 상태 확인..." -ForegroundColor Cyan
-flutter doctor
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "flutter doctor에서 문제가 발견되었습니다. 위 메시지를 확인하세요." -ForegroundColor Yellow
+if (Test-Path $chromePath) {
+  $env:CHROME_EXECUTABLE = $chromePath
 }
 
-Write-Host "2/3 패키지 설치 확인..." -ForegroundColor Cyan
-flutter pub get
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "flutter pub get 실패. 네트워크 또는 pub.dev 접근 문제일 수 있습니다." -ForegroundColor Red
+Write-Host "Starting Today Meal AI Flutter Web..." -ForegroundColor Cyan
+Write-Host "Flutter: $flutter" -ForegroundColor DarkGray
+
+Push-Location $projectRoot
+try {
+  Write-Host "1/2 Installing Flutter packages..." -ForegroundColor Cyan
+  & $flutter pub get
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  Write-Host "2/2 Running web server at http://127.0.0.1:5173" -ForegroundColor Cyan
+  & $flutter run -d web-server --web-hostname 127.0.0.1 --web-port 5173
   exit $LASTEXITCODE
+} finally {
+  Pop-Location
 }
-
-Write-Host "3/3 Chrome으로 실행..." -ForegroundColor Cyan
-flutter run -d chrome --web-port=5173

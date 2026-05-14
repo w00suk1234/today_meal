@@ -17,7 +17,11 @@ class HealthRepository {
     final userId = AppSupabase.currentUserId;
     if (client != null && userId != null) {
       try {
-        final rows = await client.from('profiles').select().eq('user_id', userId).limit(1);
+        final rows = await client
+            .from('profiles')
+            .select()
+            .eq('user_id', userId)
+            .limit(1);
         if (rows.isNotEmpty) {
           return HealthProfile.fromJson(rows.first).recalculated();
         }
@@ -31,18 +35,24 @@ class HealthRepository {
       if (raw == null || raw.isEmpty) {
         return HealthProfile.defaultProfile().recalculated();
       }
-      return HealthProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>).recalculated();
+      return HealthProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>)
+          .recalculated();
     } catch (_) {
       return HealthProfile.defaultProfile().recalculated();
     }
   }
 
-  Future<void> saveProfile(HealthProfile profile, {double? previousWeightKg}) async {
+  Future<void> saveProfile(HealthProfile profile,
+      {double? previousWeightKg}) async {
     final recalculated = profile.recalculated();
     await _storage.setString(_profileKey, jsonEncode(recalculated.toJson()));
 
-    if (previousWeightKg == null || (previousWeightKg - recalculated.weightKg).abs() >= 0.1) {
-      await addWeightLog(WeightLog(weightKg: recalculated.weightKg, bmi: recalculated.bmi, loggedAt: DateTime.now()));
+    if (previousWeightKg == null ||
+        (previousWeightKg - recalculated.weightKg).abs() >= 0.1) {
+      await addWeightLog(WeightLog(
+          weightKg: recalculated.weightKg,
+          bmi: recalculated.bmi,
+          loggedAt: DateTime.now()));
     }
 
     final client = AppSupabase.clientOrNull;
@@ -51,8 +61,11 @@ class HealthRepository {
       return;
     }
     try {
-      await client.from('profiles').upsert(recalculated.toSupabaseJson(userId), onConflict: 'user_id');
-      if (previousWeightKg == null || (previousWeightKg - recalculated.weightKg).abs() >= 0.1) {
+      await client
+          .from('profiles')
+          .upsert(recalculated.toSupabaseJson(userId), onConflict: 'user_id');
+      if (previousWeightKg == null ||
+          (previousWeightKg - recalculated.weightKg).abs() >= 0.1) {
         await client.from('weight_logs').insert({
           'user_id': userId,
           'weight_kg': recalculated.weightKg,
@@ -72,7 +85,9 @@ class HealthRepository {
         return [];
       }
       final list = jsonDecode(raw) as List<dynamic>;
-      return list.map((item) => WeightLog.fromJson(item as Map<String, dynamic>)).toList();
+      return list
+          .map((item) => WeightLog.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }
@@ -81,7 +96,8 @@ class HealthRepository {
   Future<void> addWeightLog(WeightLog log) async {
     final logs = await loadWeightLogs();
     final nextLogs = [...logs, log].take(100).toList();
-    await _storage.setString(_weightLogsKey, jsonEncode(nextLogs.map((item) => item.toJson()).toList()));
+    await _storage.setString(_weightLogsKey,
+        jsonEncode(nextLogs.map((item) => item.toJson()).toList()));
   }
 }
 

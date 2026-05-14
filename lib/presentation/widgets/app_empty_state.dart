@@ -1,32 +1,49 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_text_styles.dart';
+import 'app_card.dart';
+import 'primary_action_button.dart';
 
 class AppEmptyState extends StatelessWidget {
   const AppEmptyState({
     required this.message,
     this.icon = Icons.restaurant_menu,
+    this.actionLabel,
+    this.onAction,
     super.key,
   });
 
   final String message;
   final IconData icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
-      ),
+    return AppCard(
+      padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          Icon(icon, size: 34, color: AppColors.textMuted),
+          Container(
+            width: 54,
+            height: 54,
+            decoration: const BoxDecoration(
+                color: AppColors.lightGreenBackground, shape: BoxShape.circle),
+            child: Icon(icon, size: 28, color: AppColors.primary),
+          ),
           const SizedBox(height: 10),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textMuted)),
+          Text(message,
+              textAlign: TextAlign.center, style: AppTextStyles.muted),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: 16),
+            PrimaryActionButton(
+              label: actionLabel!,
+              icon: Icons.add_circle_outline,
+              compact: true,
+              onPressed: onAction,
+            ),
+          ],
         ],
       ),
     );

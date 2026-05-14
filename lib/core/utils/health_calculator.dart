@@ -31,7 +31,8 @@ class HealthCalculator {
     }
     final today = now ?? DateTime.now();
     var age = today.year - birthDate.year;
-    if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) {
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
       age--;
     }
     return age < 0 ? 0 : age;

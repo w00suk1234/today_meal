@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 class MealTypeSelector extends StatelessWidget {
-  const MealTypeSelector({required this.selectedType, required this.onSelected, super.key});
+  const MealTypeSelector(
+      {required this.selectedType, required this.onSelected, super.key});
 
   final String selectedType;
   final ValueChanged<String> onSelected;

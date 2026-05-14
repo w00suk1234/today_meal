@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
+
 class FoodImageView extends StatelessWidget {
   const FoodImageView({
     required this.imageRef,
@@ -20,8 +22,8 @@ class FoodImageView extends StatelessWidget {
     final bytes = _decodeDataUrl(imageRef);
     final image = bytes == null
         ? Container(
-            color: const Color(0xFFEAF3EF),
-            child: const Icon(Icons.restaurant, color: Color(0xFF1F9D7A)),
+            color: AppColors.lightGreenBackground,
+            child: const Icon(Icons.restaurant, color: AppColors.primary),
           )
         : Image.memory(bytes, fit: BoxFit.cover);
     return ClipRRect(

@@ -6,6 +6,7 @@
 .env.*
 !.env.example
 build/
+.tooling/
 android/.gradle/
 android/local.properties
 ios/Flutter/Generated.xcconfig

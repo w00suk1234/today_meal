@@ -35,10 +35,12 @@ class MealRecord {
 
   DateTime get effectiveEatenAt => eatenAt ?? createdAt;
   DateTime get effectiveStartedAt => startedAt ?? effectiveEatenAt;
-  DateTime get effectiveFinishedAt => finishedAt ?? effectiveStartedAt.add(const Duration(minutes: 15));
+  DateTime get effectiveFinishedAt =>
+      finishedAt ?? effectiveStartedAt.add(const Duration(minutes: 15));
 
   factory MealRecord.fromJson(Map<String, dynamic> json) {
-    double toDouble(Object? value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+    double toDouble(Object? value) =>
+        value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
     return MealRecord(
       id: json['id'] as String,
       foodId: json['foodId'] as String,

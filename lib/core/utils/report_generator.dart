@@ -9,8 +9,10 @@ import 'meal_timing_analyzer.dart';
 class ReportGenerator {
   const ReportGenerator._();
 
-  static List<String> generateDailyReport(DailySummary summary, UserProfile profile) {
-    return generateAdvancedDailyReport(summary: summary, profile: profile, healthProfile: null);
+  static List<String> generateDailyReport(
+      DailySummary summary, UserProfile profile) {
+    return generateAdvancedDailyReport(
+        summary: summary, profile: profile, healthProfile: null);
   }
 
   static List<String> generateAdvancedDailyReport({
@@ -45,7 +47,9 @@ class ReportGenerator {
       }
     }
 
-    final macroKcal = summary.totalCarbs * 4 + summary.totalProtein * 4 + summary.totalFat * 9;
+    final macroKcal = summary.totalCarbs * 4 +
+        summary.totalProtein * 4 +
+        summary.totalFat * 9;
     if (macroKcal > 0) {
       final proteinRatio = summary.totalProtein * 4 / macroKcal;
       final fatRatio = summary.totalFat * 9 / macroKcal;
@@ -69,15 +73,19 @@ class ReportGenerator {
       messages.add(
         '현재 BMI는 ${healthProfile.bmi.toStringAsFixed(1)}로 ${HealthCalculator.getBmiCategory(healthProfile.bmi)}입니다.',
       );
-      messages.add('추정 기초대사량은 ${healthProfile.bmr.round()}kcal, 유지 칼로리는 ${healthProfile.tdee.round()}kcal입니다.');
-      final diff = HealthCalculator.calculateWeightDiff(healthProfile.weightKg, healthProfile.targetWeightKg);
+      messages.add(
+          '추정 기초대사량은 ${healthProfile.bmr.round()}kcal, 유지 칼로리는 ${healthProfile.tdee.round()}kcal입니다.');
+      final diff = HealthCalculator.calculateWeightDiff(
+          healthProfile.weightKg, healthProfile.targetWeightKg);
       if (diff != 0) {
         messages.add('목표 체중까지 ${diff.toStringAsFixed(1)}kg 차이가 있습니다.');
       }
       if (weightLogs.length >= 2) {
-        final sortedLogs = [...weightLogs]..sort((a, b) => a.loggedAt.compareTo(b.loggedAt));
+        final sortedLogs = [...weightLogs]
+          ..sort((a, b) => a.loggedAt.compareTo(b.loggedAt));
         final change = sortedLogs.last.weightKg - sortedLogs.first.weightKg;
-        messages.add('최근 몸무게 기록 변화는 ${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}kg입니다.');
+        messages.add(
+            '최근 몸무게 기록 변화는 ${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}kg입니다.');
       }
       messages.addAll(
         MealTimingAnalyzer.generateFeedback(

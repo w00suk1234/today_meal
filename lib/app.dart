@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/constants/app_colors.dart';
+import 'core/constants/app_constants.dart';
 import 'core/utils/date_utils.dart';
 import 'core/utils/nutrition_calculator.dart';
 import 'data/local/local_storage_service.dart';
@@ -15,11 +16,11 @@ import 'data/repositories/health_repository.dart';
 import 'data/repositories/meal_repository.dart';
 import 'data/repositories/user_repository.dart';
 import 'presentation/screens/add_meal/add_meal_screen.dart';
-import 'presentation/screens/health/health_profile_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/records/records_screen.dart';
 import 'presentation/screens/report/report_screen.dart';
 import 'presentation/screens/settings/settings_screen.dart';
+import 'presentation/widgets/app_bottom_navigation.dart';
 import 'services/vision_food_service.dart';
 
 class TodayMealApp extends StatelessWidget {
@@ -29,35 +30,76 @@ class TodayMealApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color navOverlayColor(Set<WidgetState> states) {
+      if (states.contains(WidgetState.hovered)) {
+        return AppColors.primary.withValues(alpha: 0.05);
+      }
+      return Colors.transparent;
+    }
+
     return AppScope(
       controller: controller,
       child: MaterialApp(
-        title: '오늘식단 AI',
+        title: AppConstants.appName,
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,
+          splashFactory: NoSplash.splashFactory,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          hoverColor: AppColors.primary.withValues(alpha: 0.04),
+          focusColor: Colors.transparent,
           colorScheme: ColorScheme.fromSeed(
             seedColor: AppColors.primary,
             primary: AppColors.primary,
-            secondary: AppColors.secondary,
-            surface: AppColors.surface,
+            secondary: AppColors.teal,
+            surface: AppColors.cardWhite,
+            error: AppColors.coral,
           ),
           scaffoldBackgroundColor: AppColors.background,
           cardTheme: CardThemeData(
-            color: AppColors.surface,
+            color: AppColors.cardWhite,
             elevation: 0,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(24),
               side: const BorderSide(color: AppColors.border),
             ),
           ),
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
             fillColor: Colors.white,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(18),
               borderSide: const BorderSide(color: AppColors.border),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide:
+                  const BorderSide(color: AppColors.primary, width: 1.4),
+            ),
+          ),
+          chipTheme: ChipThemeData(
+            backgroundColor: AppColors.lightGreenBackground,
+            selectedColor: AppColors.primarySoft,
+            checkmarkColor: AppColors.primary,
+            side: const BorderSide(color: AppColors.border),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999)),
+          ),
+          iconButtonTheme: IconButtonThemeData(
+            style: ButtonStyle(
+              overlayColor: WidgetStateProperty.resolveWith(navOverlayColor),
+            ),
+          ),
+          navigationBarTheme: NavigationBarThemeData(
+            indicatorColor: AppColors.primarySoft,
+            overlayColor: WidgetStateProperty.resolveWith(navOverlayColor),
           ),
         ),
         home: const AppShell(),
@@ -133,16 +175,19 @@ class TodayMealController extends ChangeNotifier {
     );
   }
 
-  DailySummary get todaySummary => summaryFor(AppDateUtils.dateKey(DateTime.now()));
+  DailySummary get todaySummary =>
+      summaryFor(AppDateUtils.dateKey(DateTime.now()));
 
   Future<void> addRecord(MealRecord record) async {
     records = [...records, record];
     await mealRepository.saveRecords(records);
-    await mealRepository.saveMealGroupToSupabase(records: [record], aiDetected: false);
+    await mealRepository
+        .saveMealGroupToSupabase(records: [record], aiDetected: false);
     notifyListeners();
   }
 
-  Future<void> addRecords(List<MealRecord> nextRecords, {required bool aiDetected, String? aiConfidence}) async {
+  Future<void> addRecords(List<MealRecord> nextRecords,
+      {required bool aiDetected, String? aiConfidence}) async {
     if (nextRecords.isEmpty) {
       return;
     }
@@ -178,7 +223,8 @@ class TodayMealController extends ChangeNotifier {
       weightKg: healthProfile.weightKg,
       goalType: healthProfile.goalType,
     );
-    await healthRepository.saveProfile(healthProfile, previousWeightKg: previousWeight);
+    await healthRepository.saveProfile(healthProfile,
+        previousWeightKg: previousWeight);
     await userRepository.saveProfile(profile);
     weightLogs = await healthRepository.loadWeightLogs();
     notifyListeners();
@@ -194,31 +240,156 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+  final _homeScrollController = ScrollController();
+  final _recordsScrollController = ScrollController();
+  final _addScrollController = ScrollController();
+  final _reportScrollController = ScrollController();
+  final _settingsScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _homeScrollController.dispose();
+    _recordsScrollController.dispose();
+    _addScrollController.dispose();
+    _reportScrollController.dispose();
+    _settingsScrollController.dispose();
+    super.dispose();
+  }
+
+  void _openAddTab() {
+    if (_index == 2) {
+      _resetScroll(_addScrollController);
+      return;
+    }
+    setState(() => _index = 2);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _resetScroll(_addScrollController),
+    );
+  }
+
+  void _handleTabSelected(int value) {
+    if (value == _index) {
+      _resetScroll(_scrollControllerFor(value));
+      return;
+    }
+    setState(() => _index = value);
+    if (value == 2) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _resetScroll(_addScrollController),
+      );
+    }
+  }
+
+  ScrollController _scrollControllerFor(int index) {
+    return switch (index) {
+      0 => _homeScrollController,
+      1 => _recordsScrollController,
+      2 => _addScrollController,
+      3 => _reportScrollController,
+      _ => _settingsScrollController,
+    };
+  }
+
+  void _resetScroll(ScrollController controller) {
+    if (!controller.hasClients) {
+      return;
+    }
+    controller.jumpTo(0);
+  }
 
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const HomeScreen(),
-      AddMealScreen(onSaved: () => setState(() => _index = 0)),
-      const RecordsScreen(),
-      const ReportScreen(),
-      const HealthProfileScreen(),
-      const SettingsScreen(),
+      HomeScreen(
+        onAnalyzeFood: _openAddTab,
+        scrollController: _homeScrollController,
+      ),
+      RecordsScreen(
+        onAddMeal: _openAddTab,
+        scrollController: _recordsScrollController,
+      ),
+      AddMealScreen(
+        onSaved: () => setState(() => _index = 0),
+        scrollController: _addScrollController,
+      ),
+      ReportScreen(
+        onAddMeal: _openAddTab,
+        scrollController: _reportScrollController,
+      ),
+      SettingsScreen(scrollController: _settingsScrollController),
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-          NavigationDestination(icon: Icon(Icons.add_circle_outline), selectedIcon: Icon(Icons.add_circle), label: '추가'),
-          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: '기록'),
-          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights), label: '리포트'),
-          NavigationDestination(icon: Icon(Icons.monitor_heart_outlined), selectedIcon: Icon(Icons.monitor_heart), label: '몸상태'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: '설정'),
-        ],
+      backgroundColor: AppColors.canvas,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [AppColors.lightGreenBackground, AppColors.background],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              final frameWidth =
+                  isWide ? 430.0 : constraints.maxWidth.clamp(0.0, 480.0);
+              return Center(
+                child: Container(
+                  width: frameWidth,
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    border: isWide
+                        ? Border.all(color: AppColors.border)
+                        : Border.all(color: Colors.transparent),
+                    boxShadow: isWide
+                        ? const [
+                            BoxShadow(
+                                color: AppColors.shadow,
+                                blurRadius: 30,
+                                offset: Offset(0, 14)),
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    children: [
+                      Expanded(
+                          child:
+                              IndexedStack(index: _index, children: screens)),
+                      AppBottomNavigation(
+                        selectedIndex: _index,
+                        onSelected: _handleTabSelected,
+                        items: const [
+                          AppBottomNavigationItem(
+                              icon: Icons.home_outlined,
+                              activeIcon: Icons.home_rounded,
+                              label: '홈'),
+                          AppBottomNavigationItem(
+                              icon: Icons.history_rounded,
+                              activeIcon: Icons.manage_search_rounded,
+                              label: '기록'),
+                          AppBottomNavigationItem(
+                              icon: Icons.add_circle_outline,
+                              activeIcon: Icons.add_circle,
+                              label: '추가'),
+                          AppBottomNavigationItem(
+                              icon: Icons.bar_chart_rounded,
+                              activeIcon: Icons.insights_rounded,
+                              label: '리포트'),
+                          AppBottomNavigationItem(
+                              icon: Icons.settings_outlined,
+                              activeIcon: Icons.settings,
+                              label: '설정'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

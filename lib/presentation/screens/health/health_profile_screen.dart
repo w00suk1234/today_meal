@@ -59,8 +59,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   Widget build(BuildContext context) {
     final current = _draftProfile().recalculated();
     final bmiCategory = HealthCalculator.getBmiCategory(current.bmi);
-    final weightDiff = HealthCalculator.calculateWeightDiff(current.weightKg, current.targetWeightKg);
-    final weightLogs = AppScope.of(context).weightLogs.reversed.take(5).toList();
+    final weightDiff = HealthCalculator.calculateWeightDiff(
+        current.weightKg, current.targetWeightKg);
+    final weightLogs =
+        AppScope.of(context).weightLogs.reversed.take(5).toList();
 
     return SafeArea(
       child: ListView(
@@ -70,7 +72,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           const SizedBox(height: 4),
           const Text(AppConstants.estimateNotice, style: AppTextStyles.muted),
           const AppSectionTitle('기본 정보'),
-          TextField(controller: _nicknameController, decoration: const InputDecoration(labelText: '닉네임')),
+          TextField(
+              controller: _nicknameController,
+              decoration: const InputDecoration(labelText: '닉네임')),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -91,7 +95,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           OutlinedButton.icon(
             onPressed: _pickBirthDate,
             icon: const Icon(Icons.cake_outlined),
-            label: Text(_birthDate == null ? '생년월일 선택' : '${_birthDate!.year}-${_birthDate!.month}-${_birthDate!.day}'),
+            label: Text(_birthDate == null
+                ? '생년월일 선택'
+                : '${_birthDate!.year}-${_birthDate!.month}-${_birthDate!.day}'),
           ),
           const SizedBox(height: 12),
           Row(
@@ -100,7 +106,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 child: TextField(
                   controller: _heightController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '키', suffixText: 'cm'),
+                  decoration:
+                      const InputDecoration(labelText: '키', suffixText: 'cm'),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -109,7 +116,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 child: TextField(
                   controller: _weightController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '몸무게', suffixText: 'kg'),
+                  decoration:
+                      const InputDecoration(labelText: '몸무게', suffixText: 'kg'),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
@@ -119,7 +127,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           TextField(
             controller: _targetWeightController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: '목표 체중', suffixText: 'kg'),
+            decoration:
+                const InputDecoration(labelText: '목표 체중', suffixText: 'kg'),
             onChanged: (_) => setState(() {}),
           ),
           const AppSectionTitle('활동과 목표'),
@@ -133,7 +142,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               DropdownMenuItem(value: 'active', child: Text('높은 활동')),
               DropdownMenuItem(value: 'veryActive', child: Text('매우 높은 활동')),
             ],
-            onChanged: (value) => setState(() => _activityLevel = value ?? 'light'),
+            onChanged: (value) =>
+                setState(() => _activityLevel = value ?? 'light'),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -178,7 +188,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             const Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('아직 저장된 몸무게 변화 기록이 없습니다.', style: AppTextStyles.muted),
+                child:
+                    Text('아직 저장된 몸무게 변화 기록이 없습니다.', style: AppTextStyles.muted),
               ),
             )
           else
@@ -187,11 +198,13 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.monitor_weight_outlined),
                   title: Text('${log.weightKg.toStringAsFixed(1)}kg'),
-                  subtitle: Text('BMI ${log.bmi.toStringAsFixed(1)} · ${log.loggedAt.month}/${log.loggedAt.day}'),
+                  subtitle: Text(
+                      'BMI ${log.bmi.toStringAsFixed(1)} · ${log.loggedAt.month}/${log.loggedAt.day}'),
                 ),
               ),
           const SizedBox(height: 16),
-          AppPrimaryButton(label: '내 몸 상태 저장', icon: Icons.save_outlined, onPressed: _save),
+          AppPrimaryButton(
+              label: '내 몸 상태 저장', icon: Icons.save_outlined, onPressed: _save),
         ],
       ),
     );
@@ -228,7 +241,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Future<void> _pickSleepTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _sleepTime);
+    final picked =
+        await showTimePicker(context: context, initialTime: _sleepTime);
     if (picked != null) {
       setState(() => _sleepTime = picked);
     }
@@ -237,18 +251,22 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   Future<void> _save() async {
     final profile = _draftProfile().recalculated();
     if (profile.heightCm <= 0 || profile.weightKg <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('키와 몸무게를 입력해 주세요.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('키와 몸무게를 입력해 주세요.')));
       return;
     }
     await AppScope.of(context).saveHealthProfile(profile);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('내 몸 상태가 저장되었습니다.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('내 몸 상태가 저장되었습니다.')));
     }
   }
 
   TimeOfDay _parseTime(String value) {
     final parts = value.split(':');
-    return TimeOfDay(hour: int.tryParse(parts.first) ?? 23, minute: int.tryParse(parts.length > 1 ? parts[1] : '30') ?? 30);
+    return TimeOfDay(
+        hour: int.tryParse(parts.first) ?? 23,
+        minute: int.tryParse(parts.length > 1 ? parts[1] : '30') ?? 30);
   }
 
   String _formatTime(TimeOfDay time) {
@@ -257,7 +275,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.title, required this.value, required this.subtitle});
+  const _MetricCard(
+      {required this.title, required this.value, required this.subtitle});
 
   final String title;
   final String value;

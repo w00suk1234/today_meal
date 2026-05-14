@@ -8,9 +8,12 @@ import '../models/food_item.dart';
 class FoodRepository {
   Future<List<FoodItem>> loadFoods() async {
     try {
-      final raw = await rootBundle.loadString('assets/data/food_db_kr_sample.json');
+      final raw =
+          await rootBundle.loadString('assets/data/food_db_kr_sample.json');
       final list = jsonDecode(raw) as List<dynamic>;
-      return list.map((item) => FoodItem.fromJson(item as Map<String, dynamic>)).toList();
+      return list
+          .map((item) => FoodItem.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return fallbackFoods;
     }
@@ -22,7 +25,9 @@ class FoodRepository {
       return foods.take(8).toList();
     }
     return foods
-        .where((food) => food.name.toLowerCase().contains(normalized) || food.category.toLowerCase().contains(normalized))
+        .where((food) =>
+            food.name.toLowerCase().contains(normalized) ||
+            food.category.toLowerCase().contains(normalized))
         .take(20)
         .toList();
   }
@@ -39,7 +44,8 @@ class FoodRepository {
     return null;
   }
 
-  FoodItem? matchAiCandidate(List<FoodItem> foods, String candidateName, String? preferredFoodId) {
+  FoodItem? matchAiCandidate(
+      List<FoodItem> foods, String candidateName, String? preferredFoodId) {
     final preferred = findById(foods, preferredFoodId);
     if (preferred != null) {
       return preferred;

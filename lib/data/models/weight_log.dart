@@ -10,11 +10,13 @@ class WeightLog {
   final DateTime loggedAt;
 
   factory WeightLog.fromJson(Map<String, dynamic> json) {
-    double toDouble(Object? value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+    double toDouble(Object? value) =>
+        value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
     return WeightLog(
       weightKg: toDouble(json['weightKg'] ?? json['weight_kg']),
       bmi: toDouble(json['bmi']),
-      loggedAt: DateTime.tryParse('${json['loggedAt'] ?? json['logged_at']}') ?? DateTime.now(),
+      loggedAt: DateTime.tryParse('${json['loggedAt'] ?? json['logged_at']}') ??
+          DateTime.now(),
     );
   }
 

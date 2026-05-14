@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
+import '../../../widgets/app_card.dart';
+
 class PortionSelector extends StatelessWidget {
   const PortionSelector({
     required this.selectedMultiplier,
@@ -21,36 +24,42 @@ class PortionSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const options = [0.5, 1.0, 1.5, 2.0];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final option in options)
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in options)
+                ChoiceChip(
+                  label: Text(
+                      '${option.toStringAsFixed(option == option.roundToDouble() ? 0 : 1)}인분'),
+                  selected: !customGram && selectedMultiplier == option,
+                  onSelected: (_) => onMultiplierSelected(option),
+                  selectedColor: AppColors.primarySoft,
+                ),
               ChoiceChip(
-                label: Text('${option.toStringAsFixed(option == option.roundToDouble() ? 0 : 1)}인분'),
-                selected: !customGram && selectedMultiplier == option,
-                onSelected: (_) => onMultiplierSelected(option),
+                label: const Text('직접 입력'),
+                selected: customGram,
+                onSelected: (_) => onCustomSelected(),
+                selectedColor: AppColors.primarySoft,
               ),
-            ChoiceChip(
-              label: const Text('직접 입력'),
-              selected: customGram,
-              onSelected: (_) => onCustomSelected(),
+            ],
+          ),
+          if (customGram) ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: gramController,
+              onChanged: (_) => onCustomGramChanged(),
+              keyboardType: TextInputType.number,
+              decoration:
+                  const InputDecoration(suffixText: 'g', labelText: '섭취량'),
             ),
           ],
-        ),
-        if (customGram) ...[
-          const SizedBox(height: 12),
-          TextField(
-            controller: gramController,
-            onChanged: (_) => onCustomGramChanged(),
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(suffixText: 'g', labelText: '섭취량'),
-          ),
         ],
-      ],
+      ),
     );
   }
 }

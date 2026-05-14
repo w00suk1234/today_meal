@@ -17,14 +17,17 @@ class MealRepository {
         return [];
       }
       final list = jsonDecode(raw) as List<dynamic>;
-      return list.map((item) => MealRecord.fromJson(item as Map<String, dynamic>)).toList();
+      return list
+          .map((item) => MealRecord.fromJson(item as Map<String, dynamic>))
+          .toList();
     } catch (_) {
       return [];
     }
   }
 
   Future<void> saveRecords(List<MealRecord> records) async {
-    final encoded = jsonEncode(records.map((record) => record.toJson()).toList());
+    final encoded =
+        jsonEncode(records.map((record) => record.toJson()).toList());
     final ok = await _storage.setString(_key, encoded);
     if (!ok) {
       throw Exception('식단 기록 저장에 실패했습니다.');
@@ -54,9 +57,12 @@ class MealRepository {
             'eaten_at': first.effectiveEatenAt.toIso8601String(),
             'started_at': first.effectiveStartedAt.toIso8601String(),
             'finished_at': first.effectiveFinishedAt.toIso8601String(),
-            'total_kcal': records.fold<double>(0, (sum, item) => sum + item.kcal),
-            'total_carbs': records.fold<double>(0, (sum, item) => sum + item.carbs),
-            'total_protein': records.fold<double>(0, (sum, item) => sum + item.protein),
+            'total_kcal':
+                records.fold<double>(0, (sum, item) => sum + item.kcal),
+            'total_carbs':
+                records.fold<double>(0, (sum, item) => sum + item.carbs),
+            'total_protein':
+                records.fold<double>(0, (sum, item) => sum + item.protein),
             'total_fat': records.fold<double>(0, (sum, item) => sum + item.fat),
             'ai_detected': aiDetected,
             'ai_confidence': aiConfidence,

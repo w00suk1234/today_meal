@@ -21,7 +21,8 @@ class NutritionCalculator {
     return foodItem.fatPer100g * intakeGram / 100;
   }
 
-  static DailySummary calculateDailySummary(List<MealRecord> records, String dateKey) {
+  static DailySummary calculateDailySummary(
+      List<MealRecord> records, String dateKey) {
     return DailySummary(
       dateKey: dateKey,
       totalKcal: records.fold(0, (sum, item) => sum + item.kcal),

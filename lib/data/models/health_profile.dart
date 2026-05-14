@@ -51,25 +51,37 @@ class HealthProfile {
 
   factory HealthProfile.fromJson(Map<String, dynamic> json) {
     double toDouble(Object? value, double fallback) {
-      return value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
+      return value is num
+          ? value.toDouble()
+          : double.tryParse('$value') ?? fallback;
     }
 
     final birthDateRaw = json['birthDate'] ?? json['birth_date'];
-    final activityLevel = (json['activityLevel'] as String?) ?? (json['activity_level'] as String?) ?? 'light';
-    final goalType = (json['goalType'] as String?) ?? (json['goal_type'] as String?) ?? 'maintain';
-    final sleepTime = (json['sleepTime'] as String?) ?? (json['sleep_time'] as String?) ?? '23:30';
+    final activityLevel = (json['activityLevel'] as String?) ??
+        (json['activity_level'] as String?) ??
+        'light';
+    final goalType = (json['goalType'] as String?) ??
+        (json['goal_type'] as String?) ??
+        'maintain';
+    final sleepTime = (json['sleepTime'] as String?) ??
+        (json['sleep_time'] as String?) ??
+        '23:30';
 
     return HealthProfile(
       nickname: json['nickname'] as String? ?? '',
       gender: json['gender'] as String? ?? 'male',
-      birthDate: birthDateRaw == null || '$birthDateRaw'.isEmpty ? null : DateTime.tryParse('$birthDateRaw'),
+      birthDate: birthDateRaw == null || '$birthDateRaw'.isEmpty
+          ? null
+          : DateTime.tryParse('$birthDateRaw'),
       heightCm: toDouble(json['heightCm'] ?? json['height_cm'], 170),
       weightKg: toDouble(json['weightKg'] ?? json['weight_kg'], 70),
-      targetWeightKg: toDouble(json['targetWeightKg'] ?? json['target_weight_kg'], 68),
+      targetWeightKg:
+          toDouble(json['targetWeightKg'] ?? json['target_weight_kg'], 68),
       activityLevel: activityLevel,
       goalType: goalType,
       sleepTime: sleepTime,
-      targetKcal: toDouble(json['targetKcal'] ?? json['target_kcal'], AppConstants.defaultTargetKcal),
+      targetKcal: toDouble(json['targetKcal'] ?? json['target_kcal'],
+          AppConstants.defaultTargetKcal),
       bmr: toDouble(json['bmr'], 0),
       tdee: toDouble(json['tdee'], 0),
       bmi: toDouble(json['bmi'], 0),
@@ -86,7 +98,8 @@ class HealthProfile {
       age: age,
     );
     final nextTdee = HealthCalculator.calculateTdee(nextBmr, activityLevel);
-    final nextTarget = HealthCalculator.calculateTargetCalories(nextTdee, goalType);
+    final nextTarget =
+        HealthCalculator.calculateTargetCalories(nextTdee, goalType);
     return copyWith(
       bmi: nextBmi,
       bmr: nextBmr,

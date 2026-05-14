@@ -11,5 +11,6 @@ class LocalStorageService {
 
   String? getString(String key) => _preferences.getString(key);
 
-  Future<bool> setString(String key, String value) => _preferences.setString(key, value);
+  Future<bool> setString(String key, String value) =>
+      _preferences.setString(key, value);
 }

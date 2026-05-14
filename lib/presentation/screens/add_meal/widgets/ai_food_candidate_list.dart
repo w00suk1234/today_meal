@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../data/models/detected_food_candidate.dart';
 import '../../../../data/models/food_item.dart';
+import '../../../widgets/app_card.dart';
+import '../../../widgets/section_header.dart';
 
 class AiFoodCandidateList extends StatelessWidget {
   const AiFoodCandidateList({
@@ -29,9 +32,12 @@ class AiFoodCandidateList extends StatelessWidget {
           _AiFoodCandidateCard(
             candidate: candidate,
             matchedFood: foodsByCandidateId[candidate.id],
-            onSelectionChanged: (selected) => onSelectionChanged(candidate.id, selected),
-            onPortionSelected: (grams) => onPortionSelected(candidate.id, grams),
-            onCustomGramChanged: (value) => onCustomGramChanged(candidate.id, value),
+            onSelectionChanged: (selected) =>
+                onSelectionChanged(candidate.id, selected),
+            onPortionSelected: (grams) =>
+                onPortionSelected(candidate.id, grams),
+            onCustomGramChanged: (value) =>
+                onCustomGramChanged(candidate.id, value),
           ),
         const SizedBox(height: 6),
         const Text(
@@ -69,13 +75,15 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.candidate.intakeGram.round().toString());
+    _controller = TextEditingController(
+        text: widget.candidate.intakeGram.round().toString());
   }
 
   @override
   void didUpdateWidget(covariant _AiFoodCandidateCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.candidate.intakeGram != widget.candidate.intakeGram && !_customGram) {
+    if (oldWidget.candidate.intakeGram != widget.candidate.intakeGram &&
+        !_customGram) {
       _controller.text = widget.candidate.intakeGram.round().toString();
     }
   }
@@ -93,77 +101,103 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: widget.candidate.selected,
-                    onChanged: (value) => widget.onSelectionChanged(value ?? false),
+      child: AppCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: widget.candidate.selected,
+                  onChanged: (value) =>
+                      widget.onSelectionChanged(value ?? false),
+                  activeColor: AppColors.primary,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.candidate.name,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 3),
+                      Text(widget.candidate.description,
+                          style: AppTextStyles.muted),
+                    ],
                   ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.candidate.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                        const SizedBox(height: 3),
-                        Text(widget.candidate.description, style: AppTextStyles.muted),
-                      ],
-                    ),
-                  ),
-                  _ConfidenceBadge(label: widget.candidate.confidenceLabel),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Text('추정 섭취량: ${widget.candidate.estimatedPortionText}'),
-              const SizedBox(height: 8),
-              if (food == null)
-                const Text('음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색해 주세요.', style: AppTextStyles.muted)
-              else
-                Text('DB 매칭: ${food.name} · 1인분 ${food.servingGram.round()}g · ${food.kcalPer100g.round()}kcal/100g'),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('0.5인분'),
-                    selected: !_customGram && _sameGram(widget.candidate.intakeGram, baseGram * 0.5),
-                    onSelected: (_) => _selectPortion(baseGram * 0.5),
-                  ),
-                  ChoiceChip(
-                    label: const Text('1인분'),
-                    selected: !_customGram && _sameGram(widget.candidate.intakeGram, baseGram),
-                    onSelected: (_) => _selectPortion(baseGram),
-                  ),
-                  ChoiceChip(
-                    label: const Text('1.5인분'),
-                    selected: !_customGram && _sameGram(widget.candidate.intakeGram, baseGram * 1.5),
-                    onSelected: (_) => _selectPortion(baseGram * 1.5),
-                  ),
-                  ChoiceChip(
-                    label: const Text('직접 g 입력'),
-                    selected: _customGram,
-                    onSelected: (_) => setState(() => _customGram = true),
-                  ),
-                ],
-              ),
-              if (_customGram) ...[
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _controller,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: '섭취량', suffixText: 'g'),
-                  onChanged: widget.onCustomGramChanged,
+                ),
+                _ConfidenceBadge(label: widget.candidate.confidenceLabel),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                AppTag(
+                    label: widget.candidate.estimatedPortionText,
+                    color: AppColors.blue,
+                    icon: Icons.scale_outlined),
+                AppTag(
+                  label: food == null ? 'DB 매칭 필요' : 'DB 매칭 완료',
+                  color: food == null ? AppColors.orange : AppColors.primary,
+                  icon: food == null
+                      ? Icons.search_off_outlined
+                      : Icons.verified_outlined,
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            if (food == null)
+              const Text('음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색해 주세요.',
+                  style: AppTextStyles.muted)
+            else
+              Text(
+                  'DB 매칭: ${food.name} · 1인분 ${food.servingGram.round()}g · ${food.kcalPer100g.round()}kcal/100g',
+                  style: AppTextStyles.caption),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('0.5인분'),
+                  selected: !_customGram &&
+                      _sameGram(widget.candidate.intakeGram, baseGram * 0.5),
+                  onSelected: (_) => _selectPortion(baseGram * 0.5),
+                ),
+                ChoiceChip(
+                  label: const Text('1인분'),
+                  selected: !_customGram &&
+                      _sameGram(widget.candidate.intakeGram, baseGram),
+                  onSelected: (_) => _selectPortion(baseGram),
+                ),
+                ChoiceChip(
+                  label: const Text('1.5인분'),
+                  selected: !_customGram &&
+                      _sameGram(widget.candidate.intakeGram, baseGram * 1.5),
+                  onSelected: (_) => _selectPortion(baseGram * 1.5),
+                ),
+                ChoiceChip(
+                  label: const Text('직접 g 입력'),
+                  selected: _customGram,
+                  onSelected: (_) => setState(() => _customGram = true),
+                ),
+              ],
+            ),
+            if (_customGram) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: _controller,
+                keyboardType: TextInputType.number,
+                decoration:
+                    const InputDecoration(labelText: '섭취량', suffixText: 'g'),
+                onChanged: widget.onCustomGramChanged,
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -198,7 +232,9 @@ class _ConfidenceBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text('신뢰도 $label', style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
+      child: Text('신뢰도 $label',
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w700, fontSize: 12)),
     );
   }
 }

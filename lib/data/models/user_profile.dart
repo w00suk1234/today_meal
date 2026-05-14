@@ -32,7 +32,9 @@ class UserProfile {
     }
 
     double toDouble(Object? value, double fallback) {
-      return value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
+      return value is num
+          ? value.toDouble()
+          : double.tryParse('$value') ?? fallback;
     }
 
     return UserProfile(

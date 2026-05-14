@@ -12,7 +12,8 @@ class MealTimingAnalyzer {
       return ['오늘은 아직 식사 시간 기록이 없습니다. 규칙적인 식사 패턴을 기록해보세요.'];
     }
 
-    final sorted = [...records]..sort((a, b) => a.effectiveStartedAt.compareTo(b.effectiveStartedAt));
+    final sorted = [...records]
+      ..sort((a, b) => a.effectiveStartedAt.compareTo(b.effectiveStartedAt));
     final messages = <String>[];
 
     for (final type in ['breakfast', 'lunch', 'dinner']) {
@@ -26,9 +27,11 @@ class MealTimingAnalyzer {
       if (!_isRecommendedTime(record.mealType, started)) {
         messages.add('${_label(record.mealType)} 식사 시간이 권장 시간대보다 벗어난 편입니다.');
       }
-      final duration = record.effectiveFinishedAt.difference(record.effectiveStartedAt);
+      final duration =
+          record.effectiveFinishedAt.difference(record.effectiveStartedAt);
       if (duration.inMinutes < 10) {
-        messages.add('${record.foodName} 식사 시간이 짧게 기록되었습니다. 다음 식사는 조금 천천히 드셔보세요.');
+        messages
+            .add('${record.foodName} 식사 시간이 짧게 기록되었습니다. 다음 식사는 조금 천천히 드셔보세요.');
       }
       if (started.hour >= 21) {
         messages.add('21:00 이후 식사 기록이 있습니다. 야식은 가볍게 조절해보세요.');
@@ -36,20 +39,25 @@ class MealTimingAnalyzer {
     }
 
     for (var i = 1; i < sorted.length; i++) {
-      final gap = sorted[i].effectiveStartedAt.difference(sorted[i - 1].effectiveFinishedAt);
+      final gap = sorted[i]
+          .effectiveStartedAt
+          .difference(sorted[i - 1].effectiveFinishedAt);
       if (gap.inHours >= 6) {
         messages.add('식사 간격이 6시간 이상 벌어진 구간이 있습니다. 긴 공복이 반복되는지 확인해보세요.');
         break;
       }
     }
 
-    final dinners = sorted.where((record) => record.mealType == 'dinner').toList();
+    final dinners =
+        sorted.where((record) => record.mealType == 'dinner').toList();
     if (dinners.isNotEmpty) {
       final lastDinner = dinners.last;
-      final sleepDateTime = _sleepDateTime(lastDinner.effectiveFinishedAt, sleepTime);
+      final sleepDateTime =
+          _sleepDateTime(lastDinner.effectiveFinishedAt, sleepTime);
       final gap = sleepDateTime.difference(lastDinner.effectiveFinishedAt);
       if (gap.inMinutes < dinnerSleepGapHours * 60) {
-        messages.add('저녁 식사와 취침 예정 시간의 간격이 짧습니다. 소화 시간을 고려해 조금 더 여유를 두는 것이 좋습니다.');
+        messages
+            .add('저녁 식사와 취침 예정 시간의 간격이 짧습니다. 소화 시간을 고려해 조금 더 여유를 두는 것이 좋습니다.');
       }
     }
 

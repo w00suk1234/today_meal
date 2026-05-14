@@ -20,7 +20,8 @@ class FoodItem {
   final double fatPer100g;
 
   factory FoodItem.fromJson(Map<String, dynamic> json) {
-    double toDouble(Object? value) => value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
+    double toDouble(Object? value) =>
+        value is num ? value.toDouble() : double.tryParse('$value') ?? 0;
     return FoodItem(
       id: json['id'] as String,
       name: json['name'] as String,

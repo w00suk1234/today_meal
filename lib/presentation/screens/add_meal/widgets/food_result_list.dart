@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_text_styles.dart';
 import '../../../../data/models/food_item.dart';
+import '../../../widgets/app_card.dart';
 import '../../../widgets/app_empty_state.dart';
 
 class FoodResultList extends StatelessWidget {
@@ -18,25 +21,47 @@ class FoodResultList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (foods.isEmpty) {
-      return const AppEmptyState(message: '검색 결과가 없습니다. 다른 음식명을 입력해보세요.', icon: Icons.search_off);
+      return const AppEmptyState(
+          message: '검색 결과가 없습니다. 다른 음식명을 입력해보세요.', icon: Icons.search_off);
     }
     return Column(
       children: foods.map((food) {
         final selected = selectedFood?.id == food.id;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Card(
-            child: ListTile(
-              selected: selected,
-              leading: CircleAvatar(
-                backgroundColor: selected ? Theme.of(context).colorScheme.primary : const Color(0xFFEAF3EF),
-                foregroundColor: selected ? Colors.white : Theme.of(context).colorScheme.primary,
-                child: const Icon(Icons.restaurant),
-              ),
-              title: Text(food.name, style: const TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: Text('${food.category} · 1인분 ${food.servingGram.round()}g'),
-              trailing: Text('${food.kcalPer100g.round()}kcal/100g'),
-              onTap: () => onSelected(food),
+          child: AppCard(
+            onTap: () => onSelected(food),
+            padding: const EdgeInsets.all(12),
+            borderColor: selected
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.border,
+            color: selected ? AppColors.primarySoft : AppColors.cardWhite,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: selected
+                      ? AppColors.primary
+                      : AppColors.lightGreenBackground,
+                  foregroundColor: selected ? Colors.white : AppColors.primary,
+                  child: const Icon(Icons.restaurant),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(food.name,
+                          style: const TextStyle(fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 3),
+                      Text(
+                          '${food.category} · 1인분 ${food.servingGram.round()}g',
+                          style: AppTextStyles.caption),
+                    ],
+                  ),
+                ),
+                Text('${food.kcalPer100g.round()}kcal',
+                    style: const TextStyle(fontWeight: FontWeight.w900)),
+              ],
             ),
           ),
         );
