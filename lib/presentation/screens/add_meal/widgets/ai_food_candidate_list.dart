@@ -14,6 +14,7 @@ class AiFoodCandidateList extends StatelessWidget {
     required this.onSelectionChanged,
     required this.onPortionSelected,
     required this.onCustomGramChanged,
+    this.onMatchManually,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class AiFoodCandidateList extends StatelessWidget {
   final void Function(String id, bool selected) onSelectionChanged;
   final void Function(String id, double intakeGram) onPortionSelected;
   final void Function(String id, String value) onCustomGramChanged;
+  final VoidCallback? onMatchManually;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +40,7 @@ class AiFoodCandidateList extends StatelessWidget {
                 onPortionSelected(candidate.id, grams),
             onCustomGramChanged: (value) =>
                 onCustomGramChanged(candidate.id, value),
+            onMatchManually: onMatchManually,
           ),
         const SizedBox(height: 6),
         const Text(
@@ -56,6 +59,7 @@ class _AiFoodCandidateCard extends StatefulWidget {
     required this.onSelectionChanged,
     required this.onPortionSelected,
     required this.onCustomGramChanged,
+    this.onMatchManually,
   });
 
   final DetectedFoodCandidate candidate;
@@ -63,6 +67,7 @@ class _AiFoodCandidateCard extends StatefulWidget {
   final ValueChanged<bool> onSelectionChanged;
   final ValueChanged<double> onPortionSelected;
   final ValueChanged<String> onCustomGramChanged;
+  final VoidCallback? onMatchManually;
 
   @override
   State<_AiFoodCandidateCard> createState() => _AiFoodCandidateCardState();
@@ -151,8 +156,21 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
             ),
             const SizedBox(height: 8),
             if (food == null)
-              const Text('음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색해 주세요.',
-                  style: AppTextStyles.muted)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색으로 매칭해 주세요.',
+                      style: AppTextStyles.muted),
+                  if (widget.onMatchManually != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: widget.onMatchManually,
+                      icon: const Icon(Icons.search_rounded, size: 17),
+                      label: const Text('직접 검색으로 매칭하기'),
+                    ),
+                  ],
+                ],
+              )
             else
               Text(
                   'DB 매칭: ${food.name} · 1인분 ${food.servingGram.round()}g · ${food.kcalPer100g.round()}kcal/100g',

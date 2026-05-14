@@ -6,23 +6,17 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../app.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/nutrition_calculator.dart';
 import '../../../data/models/detected_food_candidate.dart';
 import '../../../data/models/food_item.dart';
 import '../../../data/models/meal_record.dart';
-import '../../widgets/app_card.dart';
 import '../../widgets/app_scaffold.dart';
-import '../../widgets/primary_action_button.dart';
-import '../../widgets/section_header.dart';
-import 'widgets/ai_food_candidate_list.dart';
-import 'widgets/food_result_list.dart';
-import 'widgets/food_search_box.dart';
-import 'widgets/image_picker_card.dart';
-import 'widgets/meal_type_selector.dart';
-import 'widgets/portion_selector.dart';
+import 'widgets/ai_photo_analysis_section.dart';
+import 'widgets/input_action_card.dart';
+import 'widgets/manual_food_search_section.dart';
+import 'widgets/meal_time_section.dart';
+import 'widgets/nutrition_summary_card.dart';
 
 class AddMealScreen extends StatefulWidget {
   const AddMealScreen({
@@ -39,9 +33,14 @@ class AddMealScreen extends StatefulWidget {
 }
 
 class _AddMealScreenState extends State<AddMealScreen> {
+  static const _analysisImageMaxWidth = 640.0;
+  static const _analysisImageQuality = 64;
+
   final _picker = ImagePicker();
   final _gramController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _manualSearchKey = GlobalKey();
+  final _aiResultsKey = GlobalKey();
   String _query = '';
   FoodItem? _selectedFood;
   double _portionMultiplier = 1;
@@ -55,6 +54,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
   String? _imageDataUrl;
   bool _saving = false;
   bool _analyzing = false;
+  bool _analysisAttempted = false;
   List<DetectedFoodCandidate> _aiCandidates = [];
 
   @override
@@ -70,6 +70,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
     final results = controller.foodRepository.search(controller.foods, _query);
     final selected = _selectedFood;
     final grams = _currentGrams(selected);
+    final manualNutrition =
+        selected == null ? null : _manualNutrition(selected, grams);
     final matchedFoods = {
       for (final candidate in _aiCandidates)
         candidate.id: controller.foodRepository.matchAiCandidate(
@@ -92,7 +94,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         Row(
           children: [
             Expanded(
-              child: _InputActionCard(
+              child: InputActionCard(
                 label: '카메라',
                 icon: Icons.photo_camera_outlined,
                 color: AppColors.primary,
@@ -101,7 +103,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _InputActionCard(
+              child: InputActionCard(
                 label: '갤러리',
                 icon: Icons.photo_library_outlined,
                 color: AppColors.teal,
@@ -110,60 +112,41 @@ class _AddMealScreenState extends State<AddMealScreen> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _InputActionCard(
+              child: InputActionCard(
                 label: '직접 검색',
                 icon: Icons.search_rounded,
                 color: AppColors.blue,
-                onTap: () => _searchFocusNode.requestFocus(),
+                onTap: () {
+                  _scrollToManualSearch();
+                },
               ),
             ),
           ],
         ),
-        const SectionHeader(
-            title: 'AI 사진 분석', subtitle: '음식 후보를 먼저 찾고, 최종 기록은 직접 확인해요'),
-        ImagePickerCard(
+        AiPhotoAnalysisSection(
           imageBytes: _imageBytes,
+          hasPickedImage: _pickedImage != null,
+          analyzing: _analyzing,
+          saving: _saving,
+          analysisAttempted: _analysisAttempted,
+          candidates: _aiCandidates,
+          foodsByCandidateId: matchedFoods,
+          nutrition: aiNutrition,
+          selectedMealType: _mealType,
           onPickGallery: () => _pickImage(ImageSource.gallery),
           onPickCamera: () => _pickImage(ImageSource.camera),
+          onAnalyze: canAnalyze ? _detectFoodsWithAi : null,
+          onSelectionChanged: _updateCandidateSelection,
+          onPortionSelected: _updateCandidateGram,
+          onCustomGramChanged: _updateCandidateCustomGram,
+          onMealTypeSelected: (type) => setState(() => _mealType = type),
+          onSaveCandidates: () => _saveAiCandidates(matchedFoods),
+          onManualMatch: () {
+            _scrollToManualSearch();
+          },
+          resultsKey: _aiResultsKey,
         ),
-        const SizedBox(height: 12),
-        PrimaryActionButton(
-          label: _pickedImage == null
-              ? '사진을 먼저 선택해 주세요'
-              : _analyzing
-                  ? 'AI 분석 중...'
-                  : 'AI 음식 분석 시작',
-          icon: Icons.auto_awesome,
-          onPressed: canAnalyze ? _detectFoodsWithAi : null,
-        ),
-        const SizedBox(height: 8),
-        const Text(AppConstants.estimateNotice,
-            textAlign: TextAlign.center, style: AppTextStyles.caption),
-        if (_aiCandidates.isNotEmpty) ...[
-          const SectionHeader(
-              title: '분석 결과', subtitle: '음식명, 신뢰도, 섭취량, DB 매칭을 확인하세요'),
-          AiFoodCandidateList(
-            candidates: _aiCandidates,
-            foodsByCandidateId: matchedFoods,
-            onSelectionChanged: _updateCandidateSelection,
-            onPortionSelected: _updateCandidateGram,
-            onCustomGramChanged: _updateCandidateCustomGram,
-          ),
-          const SectionHeader(title: '영양소 요약'),
-          _NutritionSummaryCard(nutrition: aiNutrition),
-          const SectionHeader(title: 'AI 기록 식사 유형'),
-          MealTypeSelector(
-              selectedType: _mealType,
-              onSelected: (type) => setState(() => _mealType = type)),
-          const SizedBox(height: 14),
-          PrimaryActionButton(
-            label: _saving ? '저장 중...' : '선택한 AI 후보 저장',
-            icon: Icons.playlist_add_check,
-            onPressed: _saving ? null : () => _saveAiCandidates(matchedFoods),
-          ),
-        ],
-        const SectionHeader(title: '식사 시간'),
-        _MealTimeCard(
+        MealTimeSection(
           eatenAt: _eatenAt,
           startedAt: _startedAt,
           finishedAt: _finishedAt,
@@ -191,31 +174,20 @@ class _AddMealScreenState extends State<AddMealScreen> {
             onPicked: (value) => setState(() => _finishedAt = value),
           ),
         ),
-        const SectionHeader(title: '직접 음식 검색'),
-        FoodSearchBox(
+        KeyedSubtree(
+          key: _manualSearchKey,
+          child: ManualFoodSearchSection(
             focusNode: _searchFocusNode,
-            onChanged: (value) => setState(() => _query = value)),
-        const SizedBox(height: 10),
-        FoodResultList(
-          foods: results,
-          selectedFood: selected,
-          onSelected: (food) {
-            setState(() {
-              _selectedFood = food;
-              _customGram = false;
-              _portionMultiplier = 1;
-              _gramController.text = food.servingGram.round().toString();
-            });
-          },
-        ),
-        if (selected != null) ...[
-          const SectionHeader(title: '선택한 음식'),
-          _SelectedFoodCard(food: selected, grams: grams),
-          const SectionHeader(title: '섭취량'),
-          PortionSelector(
+            foods: results,
+            selectedFood: selected,
+            grams: grams,
             selectedMultiplier: _portionMultiplier,
             customGram: _customGram,
             gramController: _gramController,
+            selectedMealType: _mealType,
+            saving: _saving,
+            onQueryChanged: (value) => setState(() => _query = value),
+            onFoodSelected: _selectFood,
             onMultiplierSelected: (value) => setState(() {
               _customGram = false;
               _portionMultiplier = value;
@@ -225,19 +197,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
               _gramController.text = grams.round().toString();
             }),
             onCustomGramChanged: () => setState(() {}),
+            onMealTypeSelected: (type) => setState(() => _mealType = type),
+            onSave: _saveManualMeal,
+            nutrition: manualNutrition,
           ),
-          const SectionHeader(title: '식사 유형'),
-          MealTypeSelector(
-              selectedType: _mealType,
-              onSelected: (type) => setState(() => _mealType = type)),
-          const SectionHeader(title: '영양소 요약'),
-          _NutritionSummaryCard(nutrition: _manualNutrition(selected, grams)),
-        ],
-        const SizedBox(height: 16),
-        PrimaryActionButton(
-          label: _saving ? '저장 중...' : '식단 저장',
-          icon: Icons.check,
-          onPressed: _saving ? null : _saveManualMeal,
         ),
       ],
     );
@@ -245,8 +208,12 @@ class _AddMealScreenState extends State<AddMealScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
+      // Keep the in-app preview and AI request payload compressed. Production
+      // storage should replace this MVP data URL with a thumbnail path or URL.
       final file = await _picker.pickImage(
-          source: source, imageQuality: 72, maxWidth: 900);
+          source: source,
+          imageQuality: _analysisImageQuality,
+          maxWidth: _analysisImageMaxWidth);
       if (file == null) {
         _showSnack('이미지 선택을 취소했습니다.');
         return;
@@ -257,6 +224,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         _imageBytes = bytes;
         _imageDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
         _aiCandidates = [];
+        _analysisAttempted = false;
       });
     } catch (_) {
       _showSnack(source == ImageSource.camera
@@ -272,7 +240,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
       return;
     }
 
-    setState(() => _analyzing = true);
+    setState(() {
+      _analyzing = true;
+      _analysisAttempted = false;
+    });
     try {
       final candidates = await AppScope.of(context)
           .visionFoodService
@@ -280,8 +251,16 @@ class _AddMealScreenState extends State<AddMealScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _aiCandidates = candidates);
-      _showSnack('AI가 음식 후보를 찾았습니다. 실제 음식명과 섭취량을 확인해 주세요.');
+      setState(() {
+        _aiCandidates = candidates;
+        _analysisAttempted = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToAiResults());
+      if (candidates.isEmpty) {
+        _showSnack('음식 후보를 찾지 못했습니다. 직접 검색으로 추가해 주세요.');
+      } else {
+        _showSnack('AI가 음식 후보를 찾았습니다. 실제 음식명과 섭취량을 확인해 주세요.');
+      }
     } catch (_) {
       _showSnack('AI 후보 추정에 실패했습니다.');
     } finally {
@@ -390,7 +369,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
       id: '${now.microsecondsSinceEpoch}_$sequence',
       foodId: food.id,
       foodName: food.name,
-      imagePath: _imageDataUrl,
+      imagePath: _localImageReference(),
       mealType: _mealType,
       intakeGram: intakeGram,
       kcal: NutritionCalculator.calculateKcal(food, intakeGram),
@@ -462,12 +441,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _imageBytes = null;
       _imageDataUrl = null;
       _aiCandidates = [];
+      _analysisAttempted = false;
       _gramController.clear();
     });
   }
 
-  _NutritionDraft _manualNutrition(FoodItem food, double grams) {
-    return _NutritionDraft(
+  NutritionDraft _manualNutrition(FoodItem food, double grams) {
+    return NutritionDraft(
       kcal: NutritionCalculator.calculateKcal(food, grams),
       carbs: NutritionCalculator.calculateCarbs(food, grams),
       protein: NutritionCalculator.calculateProtein(food, grams),
@@ -475,7 +455,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
     );
   }
 
-  _NutritionDraft _aiNutrition(Map<String, FoodItem?> matchedFoods) {
+  NutritionDraft _aiNutrition(Map<String, FoodItem?> matchedFoods) {
     var kcal = 0.0;
     var carbs = 0.0;
     var protein = 0.0;
@@ -492,8 +472,64 @@ class _AddMealScreenState extends State<AddMealScreen> {
           NutritionCalculator.calculateProtein(food, candidate.intakeGram);
       fat += NutritionCalculator.calculateFat(food, candidate.intakeGram);
     }
-    return _NutritionDraft(
-        kcal: kcal, carbs: carbs, protein: protein, fat: fat);
+    return NutritionDraft(kcal: kcal, carbs: carbs, protein: protein, fat: fat);
+  }
+
+  void _selectFood(FoodItem food) {
+    setState(() {
+      _selectedFood = food;
+      _customGram = false;
+      _portionMultiplier = 1;
+      _gramController.text = food.servingGram.round().toString();
+    });
+  }
+
+  String? _localImageReference() {
+    final dataUrl = _imageDataUrl;
+    if (dataUrl == null || dataUrl.isEmpty) {
+      return null;
+    }
+    // TODO: Before production, store a small thumbnail path or remote Storage
+    // URL here instead of a data URL. Supabase sync explicitly refuses
+    // data:image payloads so large base64 strings are not written to image_url.
+    return dataUrl;
+  }
+
+  Future<void> _scrollToManualSearch() async {
+    final targetContext = _manualSearchKey.currentContext;
+    if (targetContext != null) {
+      await Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.08,
+      );
+    } else {
+      final controller = widget.scrollController;
+      if (controller != null && controller.hasClients) {
+        await controller.animateTo(
+          controller.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 360),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+    if (mounted) {
+      _searchFocusNode.requestFocus();
+    }
+  }
+
+  Future<void> _scrollToAiResults() async {
+    final targetContext = _aiResultsKey.currentContext;
+    if (targetContext == null) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
   }
 
   void _showSnack(String message) {
@@ -520,271 +556,5 @@ class _AddMealScreenState extends State<AddMealScreen> {
       return;
     }
     onPicked(DateTime(date.year, date.month, date.day, time.hour, time.minute));
-  }
-}
-
-class _InputActionCard extends StatelessWidget {
-  const _InputActionCard({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.13), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(label,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SelectedFoodCard extends StatelessWidget {
-  const _SelectedFoodCard({required this.food, required this.grams});
-
-  final FoodItem food;
-  final double grams;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(Icons.restaurant_menu, color: AppColors.primary),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(food.name, style: AppTextStyles.section),
-                const SizedBox(height: 5),
-                Text(
-                    '${food.category} · 1인분 ${food.servingGram.round()}g · 예상 ${grams.round()}g',
-                    style: AppTextStyles.caption),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NutritionDraft {
-  const _NutritionDraft({
-    required this.kcal,
-    required this.carbs,
-    required this.protein,
-    required this.fat,
-  });
-
-  final double kcal;
-  final double carbs;
-  final double protein;
-  final double fat;
-}
-
-class _NutritionSummaryCard extends StatelessWidget {
-  const _NutritionSummaryCard({required this.nutrition});
-
-  final _NutritionDraft nutrition;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(nutrition.kcal.round().toString(),
-                  style: AppTextStyles.metricSmall),
-              const SizedBox(width: 4),
-              const Padding(
-                padding: EdgeInsets.only(bottom: 2),
-                child: Text('kcal', style: AppTextStyles.caption),
-              ),
-              const Spacer(),
-              const AppTag(label: '로컬 DB 기준', icon: Icons.verified_outlined),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              _MacroMini(
-                  label: '탄수화물',
-                  value: nutrition.carbs,
-                  color: AppColors.macroCarb),
-              _MacroMini(
-                  label: '단백질',
-                  value: nutrition.protein,
-                  color: AppColors.macroProtein),
-              _MacroMini(
-                  label: '지방', value: nutrition.fat, color: AppColors.macroFat),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MacroMini extends StatelessWidget {
-  const _MacroMini(
-      {required this.label, required this.value, required this.color});
-
-  final String label;
-  final double value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-              width: 22,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(999))),
-          const SizedBox(height: 7),
-          Text(label, style: AppTextStyles.caption),
-          const SizedBox(height: 2),
-          Text('${value.toStringAsFixed(0)}g',
-              style: const TextStyle(fontWeight: FontWeight.w900)),
-        ],
-      ),
-    );
-  }
-}
-
-class _MealTimeCard extends StatelessWidget {
-  const _MealTimeCard({
-    required this.eatenAt,
-    required this.startedAt,
-    required this.finishedAt,
-    required this.onPickEatenAt,
-    required this.onPickStartedAt,
-    required this.onPickFinishedAt,
-  });
-
-  final DateTime eatenAt;
-  final DateTime startedAt;
-  final DateTime finishedAt;
-  final VoidCallback onPickEatenAt;
-  final VoidCallback onPickStartedAt;
-  final VoidCallback onPickFinishedAt;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        children: [
-          _TimeRow(
-              label: '먹은 날짜/시간',
-              value: _format(eatenAt),
-              icon: Icons.event_available_outlined,
-              onTap: onPickEatenAt),
-          const Divider(height: 18, color: AppColors.divider),
-          _TimeRow(
-              label: '식사 시작',
-              value: _format(startedAt),
-              icon: Icons.play_circle_outline,
-              onTap: onPickStartedAt),
-          const Divider(height: 18, color: AppColors.divider),
-          _TimeRow(
-              label: '식사 종료',
-              value: _format(finishedAt),
-              icon: Icons.stop_circle_outlined,
-              onTap: onPickFinishedAt),
-        ],
-      ),
-    );
-  }
-
-  String _format(DateTime value) {
-    final mm = value.minute.toString().padLeft(2, '0');
-    return '${value.month}/${value.day} ${value.hour}:$mm';
-  }
-}
-
-class _TimeRow extends StatelessWidget {
-  const _TimeRow(
-      {required this.label,
-      required this.value,
-      required this.icon,
-      required this.onTap});
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: AppColors.primary, size: 18),
-        ),
-        const SizedBox(width: 11),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: AppTextStyles.caption),
-              const SizedBox(height: 2),
-              Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
-            ],
-          ),
-        ),
-        IconButton(
-          tooltip: label,
-          onPressed: onTap,
-          icon: const Icon(Icons.edit_calendar_outlined,
-              color: AppColors.textSecondary),
-        ),
-      ],
-    );
   }
 }
