@@ -11,6 +11,7 @@ import '../../../core/utils/nutrition_calculator.dart';
 import '../../../data/models/detected_food_candidate.dart';
 import '../../../data/models/food_item.dart';
 import '../../../data/models/meal_record.dart';
+import '../../../services/vision_food_service.dart';
 import '../../widgets/app_scaffold.dart';
 import 'widgets/ai_photo_analysis_section.dart';
 import 'widgets/input_action_card.dart';
@@ -245,9 +246,11 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _analysisAttempted = false;
     });
     try {
-      final candidates = await AppScope.of(context)
-          .visionFoodService
-          .detectFoodsFromImage(image);
+      final candidates =
+          await AppScope.of(context).visionFoodService.detectFoodsFromImage(
+                image,
+                availableFoods: AppScope.of(context).foods,
+              );
       if (!mounted) {
         return;
       }
@@ -261,6 +264,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
       } else {
         _showSnack('AI가 음식 후보를 찾았습니다. 실제 음식명과 섭취량을 확인해 주세요.');
       }
+    } on VisionFoodException catch (error) {
+      _showSnack(error.message);
     } catch (_) {
       _showSnack('AI 후보 추정에 실패했습니다.');
     } finally {

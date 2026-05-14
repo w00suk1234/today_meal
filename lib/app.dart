@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/constants/app_colors.dart';
+import 'core/constants/app_config.dart';
 import 'core/constants/app_constants.dart';
 import 'core/utils/date_utils.dart';
 import 'core/utils/nutrition_calculator.dart';
@@ -154,12 +155,17 @@ class TodayMealController extends ChangeNotifier {
     final userRepository = UserRepository(storage);
     final healthRepository = HealthRepository(storage);
     final healthProfile = await healthRepository.loadProfile();
+    final visionFoodService = AppConfig.hasAiApiBaseUrl
+        ? const FallbackVisionFoodService(
+            primary: RemoteVisionFoodService(),
+          )
+        : const MockVisionFoodService();
     return TodayMealController(
       foodRepository: foodRepository,
       mealRepository: mealRepository,
       userRepository: userRepository,
       healthRepository: healthRepository,
-      visionFoodService: const MockVisionFoodService(),
+      visionFoodService: visionFoodService,
       foods: await foodRepository.loadFoods(),
       records: await mealRepository.loadRecords(),
       profile: await userRepository.loadProfile(),
