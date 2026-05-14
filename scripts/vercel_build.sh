@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FLUTTER_VERSION="${FLUTTER_VERSION:-3.41.9}"
+FLUTTER_GIT_REF="${FLUTTER_GIT_REF:-stable}"
 FLUTTER_DIR="${VERCEL_FLUTTER_DIR:-$HOME/flutter}"
 
 if ! command -v flutter >/dev/null 2>&1; then
   if [ ! -x "$FLUTTER_DIR/bin/flutter" ]; then
-    echo "Installing Flutter $FLUTTER_VERSION for Vercel build..."
+    echo "Installing Flutter from $FLUTTER_GIT_REF for Vercel build..."
     rm -rf "$FLUTTER_DIR"
-    git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$FLUTTER_DIR"
+    git clone --depth 1 --branch "$FLUTTER_GIT_REF" https://github.com/flutter/flutter.git "$FLUTTER_DIR"
   fi
   export PATH="$FLUTTER_DIR/bin:$PATH"
 fi
