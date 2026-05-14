@@ -156,7 +156,7 @@ class TodayMealController extends ChangeNotifier {
     final healthRepository = HealthRepository(storage);
     final healthProfile = await healthRepository.loadProfile();
     final visionFoodService = AppConfig.hasUsableAiApiBaseUrl
-        ? const RemoteVisionFoodService()
+        ? FallbackVisionFoodService(primary: const RemoteVisionFoodService())
         : const MockVisionFoodService();
     return TodayMealController(
       foodRepository: foodRepository,

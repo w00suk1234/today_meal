@@ -387,7 +387,7 @@ class _MatchStatusPanel extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  matched ? '로컬 DB 매칭 완료' : '로컬 DB 매칭 필요',
+                  matched ? '로컬 DB 매칭 완료' : '로컬 DB 미매칭',
                   style: TextStyle(
                     color: color,
                     fontSize: 12,
@@ -487,13 +487,14 @@ class _ConfidenceBadge extends StatelessWidget {
       '보통' => const Color(0xFFE98A15),
       _ => const Color(0xFF6B7780),
     };
+    final text = label == '높음' ? '신뢰도 높음' : '확인이 필요해요';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text('신뢰도 $label',
+      child: Text(text,
           style: TextStyle(
               color: color, fontWeight: FontWeight.w700, fontSize: 12)),
     );

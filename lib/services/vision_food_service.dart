@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -11,8 +12,12 @@ import '../data/models/food_item.dart';
 abstract class VisionFoodService {
   const VisionFoodService();
 
+  String? get lastUserMessage => null;
+
   Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
     XFile image, {
+    String? imageHash,
+    bool forceRefresh = false,
     List<FoodItem> availableFoods = const [],
   });
 }
@@ -36,6 +41,8 @@ class MockVisionFoodService extends VisionFoodService {
   @override
   Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
     XFile image, {
+    String? imageHash,
+    bool forceRefresh = false,
     List<FoodItem> availableFoods = const [],
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
@@ -109,6 +116,8 @@ class RemoteVisionFoodService extends VisionFoodService {
   @override
   Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
     XFile image, {
+    String? imageHash,
+    bool forceRefresh = false,
     List<FoodItem> availableFoods = const [],
   }) async {
     final normalizedBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
@@ -122,6 +131,7 @@ class RemoteVisionFoodService extends VisionFoodService {
     final uri = Uri.parse('$normalizedBaseUrl/api/analyze-food');
     final closeClient = client == null;
     final requestClient = client ?? http.Client();
+    debugPrint('[AI_REMOTE_REQUEST] url=$uri model is server-side');
 
     try {
       final response = await requestClient
@@ -131,7 +141,13 @@ class RemoteVisionFoodService extends VisionFoodService {
             body: jsonEncode({
               'imageBase64': imageBase64,
               'mimeType': mimeType,
+              if (imageHash != null && imageHash.isNotEmpty)
+                'imageHash': imageHash,
+              if (forceRefresh) 'forceRefresh': true,
+              // Keep the prompt compact: send only id/name/category and cap
+              // the list. TODO: rank foods by recent usage/search context.
               'availableFoods': availableFoods
+                  .take(200)
                   .map((food) => {
                         'id': food.id,
                         'name': food.name,
@@ -152,6 +168,13 @@ class RemoteVisionFoodService extends VisionFoodService {
         );
       }
 
+      final responseFoods = decoded['foods'];
+      debugPrint(
+        '[AI_REMOTE_RESPONSE] status=${response.statusCode} '
+        'foods=${responseFoods is List ? responseFoods.length : 0} '
+        'cached=${decoded['cached'] == true}',
+      );
+
       if (response.statusCode < 200 || response.statusCode >= 300) {
         final message = _errorMessage(decoded) ?? 'AI 분석 서버 요청에 실패했습니다.';
         throw VisionFoodException(
@@ -165,10 +188,21 @@ class RemoteVisionFoodService extends VisionFoodService {
         throw const VisionFoodException('AI 분석 응답 형식이 올바르지 않습니다.');
       }
 
-      return [
-        for (var index = 0; index < foods.length && index < 5; index++)
-          _candidateFromJson(foods[index], index),
-      ];
+      final allowedFoodIds = availableFoods.map((food) => food.id).toSet();
+      final candidates = <DetectedFoodCandidate>[];
+      for (var index = 0;
+          index < foods.length && candidates.length < 5;
+          index++) {
+        final candidate = _candidateFromJson(
+          foods[index],
+          candidates.length,
+          allowedFoodIds,
+        );
+        if (candidate != null) {
+          candidates.add(candidate);
+        }
+      }
+      return candidates;
     } on TimeoutException {
       throw const VisionFoodException('AI 분석 요청 시간이 초과되었습니다.');
     } on VisionFoodException {
@@ -182,23 +216,31 @@ class RemoteVisionFoodService extends VisionFoodService {
     }
   }
 
-  DetectedFoodCandidate _candidateFromJson(Object? value, int index) {
+  DetectedFoodCandidate? _candidateFromJson(
+    Object? value,
+    int index,
+    Set<String> allowedFoodIds,
+  ) {
     final item = value is Map<String, dynamic> ? value : <String, dynamic>{};
-    final name = '${item['name'] ?? '음식 후보 ${index + 1}'}'.trim();
+    final name = '${item['name'] ?? ''}'.trim();
+    if (name.isEmpty) {
+      return null;
+    }
     final estimatedGram = item['estimatedGram'];
     final matchedFoodItemId = item['matchedFoodItemId'];
+    final normalizedMatchedFoodItemId = matchedFoodItemId is String &&
+            allowedFoodIds.contains(matchedFoodItemId)
+        ? matchedFoodItemId
+        : null;
     return DetectedFoodCandidate(
       id: 'remote_${DateTime.now().microsecondsSinceEpoch}_$index',
-      name: name.isEmpty ? '음식 후보 ${index + 1}' : name,
+      name: name,
       confidenceLabel: _confidenceLabel(item['confidence']),
       description: '${item['description'] ?? '사진 기반 음식 후보입니다.'}',
       estimatedPortionText: '${item['estimatedPortionText'] ?? '확인 필요'}',
-      matchedFoodItemId:
-          matchedFoodItemId is String && matchedFoodItemId.trim().isNotEmpty
-              ? matchedFoodItemId
-              : null,
+      matchedFoodItemId: normalizedMatchedFoodItemId,
       selected: true,
-      intakeGram: _toPositiveDouble(estimatedGram) ?? 100,
+      intakeGram: _normalizedGram(estimatedGram),
     );
   }
 
@@ -229,10 +271,10 @@ class RemoteVisionFoodService extends VisionFoodService {
     };
   }
 
-  double? _toPositiveDouble(Object? value) {
+  double _normalizedGram(Object? value) {
     final parsed = value is num ? value.toDouble() : double.tryParse('$value');
-    if (parsed == null || parsed <= 0) {
-      return null;
+    if (parsed == null || parsed < 20 || parsed > 2000) {
+      return 100;
     }
     return parsed;
   }
@@ -246,5 +288,46 @@ class RemoteVisionFoodService extends VisionFoodService {
       }
     }
     return null;
+  }
+}
+
+class FallbackVisionFoodService extends VisionFoodService {
+  FallbackVisionFoodService({
+    required this.primary,
+    this.fallback = const MockVisionFoodService(),
+  });
+
+  final VisionFoodService primary;
+  final VisionFoodService fallback;
+  String? _lastUserMessage;
+
+  @override
+  String? get lastUserMessage => _lastUserMessage;
+
+  @override
+  Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
+    XFile image, {
+    String? imageHash,
+    bool forceRefresh = false,
+    List<FoodItem> availableFoods = const [],
+  }) async {
+    _lastUserMessage = null;
+    try {
+      return await primary.detectFoodsFromImage(
+        image,
+        imageHash: imageHash,
+        forceRefresh: forceRefresh,
+        availableFoods: availableFoods,
+      );
+    } catch (error) {
+      debugPrint('[AI_FALLBACK] reason=$error');
+      _lastUserMessage = '원격 AI 분석에 실패해 데모 후보를 표시합니다.';
+      return fallback.detectFoodsFromImage(
+        image,
+        imageHash: imageHash,
+        forceRefresh: forceRefresh,
+        availableFoods: availableFoods,
+      );
+    }
   }
 }

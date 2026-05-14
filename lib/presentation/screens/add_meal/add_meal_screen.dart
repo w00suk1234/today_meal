@@ -1,6 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -53,6 +54,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
   XFile? _pickedImage;
   Uint8List? _imageBytes;
   String? _imageDataUrl;
+  String? _selectedImageHash;
+  String? _lastAnalyzedImageHash;
+  bool _hasCachedAiResult = false;
+  List<DetectedFoodCandidate> _lastAiCandidates = [];
   bool _saving = false;
   bool _analyzing = false;
   bool _analysisAttempted = false;
@@ -83,6 +88,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
     };
     final aiNutrition = _aiNutrition(matchedFoods);
     final canAnalyze = _pickedImage != null && !_analyzing;
+    final hasCachedAnalysisForImage = _hasCachedAnalysisForSelectedImage;
 
     return AppScaffold(
       controller: widget.scrollController,
@@ -137,6 +143,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
           onPickGallery: () => _pickImage(ImageSource.gallery),
           onPickCamera: () => _pickImage(ImageSource.camera),
           onAnalyze: canAnalyze ? _detectFoodsWithAi : null,
+          hasCachedAnalysisForImage: hasCachedAnalysisForImage,
+          onForceAnalyze: canAnalyze && hasCachedAnalysisForImage
+              ? () => _detectFoodsWithAi(forceRemote: true)
+              : null,
           onSelectionChanged: _updateCandidateSelection,
           onPortionSelected: _updateCandidateGram,
           onCustomGramChanged: _updateCandidateCustomGram,
@@ -220,10 +230,12 @@ class _AddMealScreenState extends State<AddMealScreen> {
         return;
       }
       final bytes = await file.readAsBytes();
+      final imageHash = _imageHash(bytes);
       setState(() {
         _pickedImage = file;
         _imageBytes = bytes;
         _imageDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        _selectedImageHash = imageHash;
         _aiCandidates = [];
         _analysisAttempted = false;
       });
@@ -234,11 +246,32 @@ class _AddMealScreenState extends State<AddMealScreen> {
     }
   }
 
-  Future<void> _detectFoodsWithAi() async {
+  Future<void> _detectFoodsWithAi({bool forceRemote = false}) async {
     final image = _pickedImage;
     final controller = AppScope.of(context);
+    final imageBytes = _imageBytes;
+    final imageHash = _selectedImageHash;
     if (image == null) {
       _showSnack('먼저 음식 사진을 업로드하거나 촬영해 주세요.');
+      return;
+    }
+
+    debugPrint(
+      '[AI_ANALYZE_START] imageHash=${_shortHash(imageHash)} '
+      'bytes=${imageBytes?.length ?? 0} foods=${controller.foods.length}',
+    );
+
+    if (!forceRemote &&
+        imageHash != null &&
+        _hasCachedAiResult &&
+        _lastAnalyzedImageHash == imageHash) {
+      debugPrint('[AI_CACHE_HIT] imageHash=${_shortHash(imageHash)}');
+      setState(() {
+        _aiCandidates = _cloneCandidates(_lastAiCandidates);
+        _analysisAttempted = true;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToAiResults());
+      _showSnack('같은 사진의 이전 분석 결과를 다시 표시합니다.');
       return;
     }
 
@@ -247,9 +280,11 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _analysisAttempted = false;
     });
     try {
-      final candidates =
-          await controller.visionFoodService.detectFoodsFromImage(
+      final visionFoodService = controller.visionFoodService;
+      final candidates = await visionFoodService.detectFoodsFromImage(
         image,
+        imageHash: imageHash,
+        forceRefresh: forceRemote,
         availableFoods: controller.foods,
       );
       if (!mounted) {
@@ -257,15 +292,21 @@ class _AddMealScreenState extends State<AddMealScreen> {
       }
       setState(() {
         _aiCandidates = candidates;
+        _lastAiCandidates = _cloneCandidates(candidates);
+        _lastAnalyzedImageHash = imageHash;
+        _hasCachedAiResult = true;
         _analysisAttempted = true;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToAiResults());
       if (candidates.isEmpty) {
         _showSnack('음식 후보를 찾지 못했습니다. 직접 검색으로 추가해 주세요.');
+      } else if (visionFoodService.lastUserMessage != null) {
+        _showSnack(visionFoodService.lastUserMessage!);
       } else {
         _showSnack('AI가 음식 후보를 찾았습니다. 실제 음식명과 섭취량을 확인해 주세요.');
       }
     } on VisionFoodException catch (error) {
+      debugPrint('[AI_FALLBACK] reason=${error.message}');
       if (mounted) {
         setState(() {
           _aiCandidates = [];
@@ -276,6 +317,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
       }
       _showSnack(error.message);
     } catch (_) {
+      debugPrint('[AI_FALLBACK] reason=unknown');
       if (mounted) {
         setState(() {
           _aiCandidates = [];
@@ -290,6 +332,28 @@ class _AddMealScreenState extends State<AddMealScreen> {
         setState(() => _analyzing = false);
       }
     }
+  }
+
+  bool get _hasCachedAnalysisForSelectedImage {
+    final imageHash = _selectedImageHash;
+    return imageHash != null &&
+        _hasCachedAiResult &&
+        _lastAnalyzedImageHash == imageHash;
+  }
+
+  String _imageHash(Uint8List bytes) => sha256.convert(bytes).toString();
+
+  String _shortHash(String? hash) {
+    if (hash == null || hash.length <= 12) {
+      return hash ?? 'none';
+    }
+    return hash.substring(0, 12);
+  }
+
+  List<DetectedFoodCandidate> _cloneCandidates(
+    List<DetectedFoodCandidate> candidates,
+  ) {
+    return candidates.map((candidate) => candidate.copyWith()).toList();
   }
 
   double _currentGrams(FoodItem? food) {
@@ -462,6 +526,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _pickedImage = null;
       _imageBytes = null;
       _imageDataUrl = null;
+      _selectedImageHash = null;
       _aiCandidates = [];
       _analysisAttempted = false;
       _gramController.clear();

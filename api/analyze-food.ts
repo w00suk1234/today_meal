@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto';
+
 const MAX_IMAGE_BASE64_LENGTH = 4_000_000;
 const MAX_AVAILABLE_FOODS = 200;
 const MAX_OUTPUT_FOODS = 5;
+const CACHE_TTL_MS = 10 * 60 * 1000;
 const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_CHAT_COMPLETIONS_URL =
   'https://api.openai.com/v1/chat/completions';
@@ -19,6 +22,23 @@ type AnalysisFood = {
   estimatedGram: number;
   matchedFoodItemId: string | null;
 };
+
+type ImageDetail = 'low' | 'auto' | 'high';
+
+type AnalysisBody = {
+  foods: AnalysisFood[];
+  warning: string;
+  cached: boolean;
+};
+
+type CacheEntry = {
+  expiresAt: number;
+  body: Omit<AnalysisBody, 'cached'>;
+};
+
+const analysisCache: Map<string, CacheEntry> =
+  (globalThis as any).__todayMealAnalysisCache ??
+  ((globalThis as any).__todayMealAnalysisCache = new Map());
 
 function setJsonHeaders(res: any, statusCode: number) {
   res.statusCode = statusCode;
@@ -41,12 +61,61 @@ function sendError(
   message: string,
   details?: string,
 ) {
+  console.error(`[API_ERROR] code=${code}`);
   sendJson(res, statusCode, {
     error: {
       code,
       message,
       ...(details ? { details } : {}),
     },
+  });
+}
+
+function hashText(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function shortHash(value: string) {
+  return value.length > 12 ? value.slice(0, 12) : value;
+}
+
+function normalizeImageDetail(value: unknown): ImageDetail {
+  if (value === 'auto' || value === 'high') {
+    return value;
+  }
+  return 'low';
+}
+
+function normalizeImageHash(value: unknown, imageBase64: string) {
+  const explicit = String(value ?? '').trim().toLowerCase();
+  if (/^[a-f0-9]{32,128}$/.test(explicit)) {
+    return explicit;
+  }
+  return hashText(imageBase64);
+}
+
+function getCachedAnalysis(cacheKey: string) {
+  const entry = analysisCache.get(cacheKey);
+  if (!entry) {
+    return null;
+  }
+  if (entry.expiresAt <= Date.now()) {
+    analysisCache.delete(cacheKey);
+    return null;
+  }
+  return entry.body;
+}
+
+function setCachedAnalysis(
+  cacheKey: string,
+  body: Omit<AnalysisBody, 'cached'>,
+) {
+  // Vercel Serverless memory is short-lived and per-instance. This cache only
+  // prevents repeated calls while the same warm instance is alive.
+  // TODO: Move cross-instance caching to Vercel KV or a Supabase table.
+  analysisCache.set(cacheKey, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    body,
   });
 }
 
@@ -91,16 +160,20 @@ function normalizeAnalysisFoods(value: unknown, availableFoods: ApiFood[]) {
           ? item.matchedFoodItemId
           : null;
       const estimatedGram = Number(item?.estimatedGram);
+      const normalizedGram =
+        Number.isFinite(estimatedGram) && estimatedGram >= 20 && estimatedGram <= 2000
+          ? Math.round(estimatedGram)
+          : 100;
       return {
         name: String(item?.name ?? '').trim(),
         confidence: normalizeConfidence(item?.confidence),
-        description: String(item?.description ?? '').trim(),
+        description:
+          String(item?.description ?? '').trim().slice(0, 90) ||
+          '사진 기반 음식 후보입니다.',
         estimatedPortionText:
-          String(item?.estimatedPortionText ?? '').trim() || '확인 필요',
-        estimatedGram:
-          Number.isFinite(estimatedGram) && estimatedGram > 0
-            ? Math.round(estimatedGram)
-            : 100,
+          String(item?.estimatedPortionText ?? '').trim().slice(0, 30) ||
+          '확인 필요',
+        estimatedGram: normalizedGram,
         matchedFoodItemId: matchedId,
       };
     })
@@ -110,15 +183,26 @@ function normalizeAnalysisFoods(value: unknown, availableFoods: ApiFood[]) {
 
 function buildPrompt(availableFoods: ApiFood[]) {
   return [
-    '너는 한국 식단 기록 앱의 음식 사진 분석 도우미다.',
-    '사진에 보이는 음식 후보를 최대 5개까지 찾는다.',
-    '한국 음식명을 우선 사용한다.',
-    '칼로리, 탄수화물, 단백질, 지방 값은 절대 생성하지 않는다.',
-    '반환할 수 있는 값은 음식명, confidence, 설명, 예상 섭취량, availableFoods 기반 matchedFoodItemId뿐이다.',
-    'confidence는 high, medium, low 중 하나만 사용한다.',
-    'availableFoods와 명확히 매칭될 때만 matchedFoodItemId에 해당 id를 넣고, 애매하면 null을 넣는다.',
-    '음식이 아니거나 판단이 어려우면 foods를 빈 배열로 반환한다.',
-    '반드시 JSON만 반환한다. 마크다운과 설명 문장은 출력하지 않는다.',
+    'You are a Korean meal photo recognition assistant for a diet logging app.',
+    'Analyze the meal image and return likely visible foods.',
+    'Prioritize Korean food names when appropriate.',
+    '',
+    'Rules:',
+    '1. Return up to 5 visible food candidates.',
+    '2. If the image contains multiple dishes, return multiple candidates instead of choosing only one.',
+    '3. Separate rice, soup/stew, side dishes, and main dishes when they are clearly visible.',
+    '4. Do not invent foods that are not visually supported.',
+    '5. Do not overclaim confidence. Use "high" only when the food is visually clear.',
+    '6. Use "medium" or "low" when the food is partially visible, ambiguous, or could be confused with similar dishes.',
+    '7. Do not generate calories, carbs, protein, or fat.',
+    '8. Only return name, confidence, description, estimatedPortionText, estimatedGram, matchedFoodItemId.',
+    '9. matchedFoodItemId must be selected only from availableFoods.',
+    '10. If no availableFoods item is clearly matched, set matchedFoodItemId to null.',
+    '11. If the image is not food or the food is impossible to identify, return an empty foods array.',
+    '12. Return valid JSON only.',
+    '',
+    'Available foods are provided as id/name/category. Use them only for matching, not for forcing a result.',
+    'Descriptions must be short Korean sentences.',
     '',
     'JSON schema:',
     '{"foods":[{"name":"고등어구이","confidence":"high","description":"구운 생선으로 보입니다.","estimatedPortionText":"약 1인분","estimatedGram":180,"matchedFoodItemId":"grilled_mackerel"}]}',
@@ -131,13 +215,16 @@ async function callOpenAi({
   imageBase64,
   mimeType,
   availableFoods,
+  model,
+  detail,
 }: {
   imageBase64: string;
   mimeType: string;
   availableFoods: ApiFood[];
+  model: string;
+  detail: ImageDetail;
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
   if (!apiKey) {
     return {
       statusCode: 503,
@@ -156,8 +243,8 @@ async function callOpenAi({
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
-    // TODO: Cache repeated image hashes to avoid paying for duplicate analysis.
     // TODO: Add per-user daily analysis limits before production launch.
+    console.log(`[API_OPENAI_REQUEST] model=${model} detail=${detail}`);
     const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
@@ -184,7 +271,7 @@ async function callOpenAi({
                 type: 'image_url',
                 image_url: {
                   url: `data:${mimeType};base64,${imageBase64}`,
-                  detail: 'low',
+                  detail,
                 },
               },
             ],
@@ -263,11 +350,13 @@ async function callOpenAi({
       };
     }
     const foods = normalizeAnalysisFoods(parsed.foods, availableFoods);
+    console.log(`[API_PARSE_OK] foods=${foods.length}`);
     return {
       statusCode: 200,
       body: {
         foods,
         warning: '사진 기반 분석은 참고용이며 실제 섭취량 확인이 필요합니다.',
+        cached: false,
       },
     };
   } catch (error: any) {
@@ -311,6 +400,24 @@ export default async function handler(req: any, res: any) {
     const imageBase64 = String(body.imageBase64 ?? '').trim();
     const mimeType = String(body.mimeType ?? '').trim() || 'image/jpeg';
     const availableFoods = normalizeFoods(body.availableFoods);
+    const imageHash = normalizeImageHash(body.imageHash, imageBase64);
+    const forceRefresh = body.forceRefresh === true;
+    const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
+    const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
+    const detail = normalizeImageDetail(process.env.AI_IMAGE_DETAIL || 'low');
+    const availableFoodsHash = hashText(JSON.stringify(availableFoods));
+
+    console.log('[API_ANALYZE_START]');
+    console.log(
+      `[API_ENV] provider=${provider} model=${model} detail=${detail} hasOpenAIKey=${Boolean(
+        process.env.OPENAI_API_KEY,
+      )}`,
+    );
+    console.log(
+      `[API_BODY] imageBase64Length=${imageBase64.length} foods=${availableFoods.length} imageHash=${shortHash(
+        imageHash,
+      )} forceRefresh=${forceRefresh}`,
+    );
 
     if (!imageBase64) {
       sendError(res, 400, 'IMAGE_REQUIRED', 'imageBase64가 필요합니다.');
@@ -325,7 +432,6 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
     if (provider !== 'openai') {
       sendError(
         res,
@@ -336,7 +442,39 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const result = await callOpenAi({ imageBase64, mimeType, availableFoods });
+    const cacheKey = [
+      provider,
+      model,
+      detail,
+      imageHash,
+      availableFoodsHash,
+    ].join(':');
+    const cached = forceRefresh ? null : getCachedAnalysis(cacheKey);
+    if (cached) {
+      console.log(`[API_CACHE_HIT] imageHash=${shortHash(imageHash)}`);
+      sendJson(res, 200, {...cached, cached: true});
+      return;
+    }
+    if (forceRefresh) {
+      console.log(`[API_CACHE_BYPASS] imageHash=${shortHash(imageHash)}`);
+    }
+
+    const result = await callOpenAi({
+      imageBase64,
+      mimeType,
+      availableFoods,
+      model,
+      detail,
+    });
+    if (result.statusCode === 200 && 'foods' in result.body) {
+      const body = result.body as AnalysisBody;
+      setCachedAnalysis(cacheKey, {
+        foods: body.foods,
+        warning: body.warning,
+      });
+      sendJson(res, 200, {...body, cached: false});
+      return;
+    }
     sendJson(res, result.statusCode, result.body);
   } catch (error: any) {
     sendError(

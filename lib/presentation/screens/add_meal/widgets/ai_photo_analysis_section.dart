@@ -28,6 +28,8 @@ class AiPhotoAnalysisSection extends StatelessWidget {
     required this.onPickGallery,
     required this.onPickCamera,
     required this.onAnalyze,
+    required this.hasCachedAnalysisForImage,
+    required this.onForceAnalyze,
     required this.onSelectionChanged,
     required this.onPortionSelected,
     required this.onCustomGramChanged,
@@ -50,6 +52,8 @@ class AiPhotoAnalysisSection extends StatelessWidget {
   final VoidCallback onPickGallery;
   final VoidCallback onPickCamera;
   final VoidCallback? onAnalyze;
+  final bool hasCachedAnalysisForImage;
+  final VoidCallback? onForceAnalyze;
   final void Function(String id, bool selected) onSelectionChanged;
   final void Function(String id, double intakeGram) onPortionSelected;
   final void Function(String id, String value) onCustomGramChanged;
@@ -76,10 +80,24 @@ class AiPhotoAnalysisSection extends StatelessWidget {
               ? '사진을 먼저 선택해 주세요'
               : analyzing
                   ? 'AI 분석 중...'
-                  : 'AI 음식 분석 시작',
+                  : hasCachedAnalysisForImage
+                      ? '이전 분석 결과 사용'
+                      : 'AI 음식 분석 시작',
           icon: Icons.auto_awesome,
           onPressed: onAnalyze,
         ),
+        if (hasCachedAnalysisForImage && !analyzing) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: TextButton.icon(
+              onPressed: onForceAnalyze,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('다시 분석하기'),
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         const Text(AppConstants.estimateNotice,
             textAlign: TextAlign.center, style: AppTextStyles.caption),
