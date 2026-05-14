@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../local/local_storage_service.dart';
 import '../models/meal_record.dart';
 import '../remote/supabase_client.dart';
@@ -8,11 +10,13 @@ class MealRepository {
   MealRepository(this._storage);
 
   static const _key = 'meal_records_v1';
+  static const _corruptBackupKey = 'meal_records_v1_corrupt_backup';
   final LocalStorageService _storage;
 
   Future<List<MealRecord>> loadRecords() async {
+    String? raw;
     try {
-      final raw = _storage.getString(_key);
+      raw = _storage.getString(_key);
       if (raw == null || raw.isEmpty) {
         return [];
       }
@@ -20,7 +24,13 @@ class MealRepository {
       return list
           .map((item) => MealRecord.fromJson(item as Map<String, dynamic>))
           .toList();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('MealRepository.loadRecords failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (raw != null && raw.isNotEmpty) {
+        await _storage.setString(_corruptBackupKey, raw);
+      }
+      // TODO: Add a recovery UI that can restore or export the backup value.
       return [];
     }
   }
@@ -48,12 +58,13 @@ class MealRepository {
 
     try {
       final first = records.first;
+      final remoteImageUrl = _remoteImageUrl(first.imagePath);
       final mealLog = await client
           .from('meal_logs')
           .insert({
             'user_id': userId,
             'meal_type': first.mealType,
-            'image_url': first.imagePath,
+            'image_url': remoteImageUrl,
             'eaten_at': first.effectiveEatenAt.toIso8601String(),
             'started_at': first.effectiveStartedAt.toIso8601String(),
             'finished_at': first.effectiveFinishedAt.toIso8601String(),
@@ -89,8 +100,24 @@ class MealRepository {
                 )
                 .toList(),
           );
-    } catch (_) {
+    } catch (error, stackTrace) {
       // Supabase sync is best-effort in the MVP. Local records remain saved.
+      debugPrint('MealRepository.saveMealGroupToSupabase failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      // TODO: Store syncStatus/pendingSync metadata on local meal groups so a
+      // retry queue can surface failed remote sync without blocking local save.
     }
+  }
+
+  String? _remoteImageUrl(String? value) {
+    if (value == null || value.isEmpty) {
+      return null;
+    }
+    if (value.startsWith('data:image/')) {
+      debugPrint(
+          'MealRepository: skipped base64 image data for Supabase image_url. Use Supabase Storage URL instead.');
+      return null;
+    }
+    return value;
   }
 }
