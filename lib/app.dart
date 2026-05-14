@@ -155,22 +155,9 @@ class TodayMealController extends ChangeNotifier {
     final userRepository = UserRepository(storage);
     final healthRepository = HealthRepository(storage);
     final healthProfile = await healthRepository.loadProfile();
-    if (AppConfig.isAiApiBaseUrlPlaceholder) {
-      debugPrint(
-        '[AI_CONFIG_WARN] AI_API_BASE_URL is placeholder. '
-        'Falling back to MockVisionFoodService.',
-      );
-    }
     final visionFoodService = AppConfig.hasUsableAiApiBaseUrl
-        ? FallbackVisionFoodService(primary: const RemoteVisionFoodService())
+        ? const RemoteVisionFoodService()
         : const MockVisionFoodService();
-    final serviceLabel = AppConfig.hasUsableAiApiBaseUrl
-        ? 'RemoteVisionFoodService'
-        : 'MockVisionFoodService';
-    debugPrint(
-      '[AI_CONFIG] aiApiBaseUrl=${AppConfig.aiApiBaseUrl.trim()} '
-      'hasAiApiBaseUrl=${AppConfig.hasAiApiBaseUrl} service=$serviceLabel',
-    );
     return TodayMealController(
       foodRepository: foodRepository,
       mealRepository: mealRepository,

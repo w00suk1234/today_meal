@@ -5,7 +5,6 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../data/models/detected_food_candidate.dart';
 import '../../../../data/models/food_item.dart';
 import '../../../widgets/app_card.dart';
-import '../../../widgets/section_header.dart';
 
 class AiFoodCandidateList extends StatelessWidget {
   const AiFoodCandidateList({
@@ -103,105 +102,124 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
   Widget build(BuildContext context) {
     final food = widget.matchedFood;
     final baseGram = food?.servingGram ?? widget.candidate.intakeGram;
+    final selected = widget.candidate.selected;
+    final kcal = food == null
+        ? null
+        : (food.kcalPer100g * widget.candidate.intakeGram / 100).round();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: AppCard(
-        padding: const EdgeInsets.all(14),
+        color: selected ? const Color(0xFFFBFFFC) : AppColors.cardWhite,
+        borderColor: selected
+            ? AppColors.primary.withValues(alpha: 0.24)
+            : AppColors.border,
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Checkbox(
-                  value: widget.candidate.selected,
-                  onChanged: (value) =>
-                      widget.onSelectionChanged(value ?? false),
-                  activeColor: AppColors.primary,
+                _SelectionToggle(
+                  selected: selected,
+                  onTap: () => widget.onSelectionChanged(!selected),
                 ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.candidate.name,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 3),
-                      Text(widget.candidate.description,
-                          style: AppTextStyles.muted),
+                      Text(
+                        widget.candidate.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        widget.candidate.description,
+                        style: AppTextStyles.muted,
+                      ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 8),
                 _ConfidenceBadge(label: widget.candidate.confidenceLabel),
               ],
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            const SizedBox(height: 14),
+            Row(
               children: [
-                AppTag(
-                    label: widget.candidate.estimatedPortionText,
+                Expanded(
+                  child: _InfoTile(
+                    label: '예상 섭취량',
+                    value: widget.candidate.estimatedPortionText,
+                    icon: Icons.scale_outlined,
                     color: AppColors.blue,
-                    icon: Icons.scale_outlined),
-                AppTag(
-                  label: food == null ? 'DB 매칭 필요' : 'DB 매칭 완료',
-                  color: food == null ? AppColors.orange : AppColors.primary,
-                  icon: food == null
-                      ? Icons.search_off_outlined
-                      : Icons.verified_outlined,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _InfoTile(
+                    label: food == null ? 'DB 매칭' : '계산 열량',
+                    value: food == null ? '확인 필요' : '${kcal}kcal',
+                    icon: food == null
+                        ? Icons.search_off_outlined
+                        : Icons.local_fire_department_outlined,
+                    color: food == null ? AppColors.orange : AppColors.primary,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             if (food == null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색으로 매칭해 주세요.',
-                      style: AppTextStyles.muted),
-                  if (widget.onMatchManually != null) ...[
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: widget.onMatchManually,
-                      icon: const Icon(Icons.search_rounded, size: 17),
-                      label: const Text('직접 검색으로 매칭하기'),
-                    ),
-                  ],
-                ],
+              _MatchStatusPanel(
+                matchedFood: null,
+                onMatchManually: widget.onMatchManually,
               )
             else
-              Text(
-                  'DB 매칭: ${food.name} · 1인분 ${food.servingGram.round()}g · ${food.kcalPer100g.round()}kcal/100g',
-                  style: AppTextStyles.caption),
-            const SizedBox(height: 12),
+              _MatchStatusPanel(matchedFood: food),
+            const SizedBox(height: 14),
+            const Text(
+              '섭취량 선택',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                ChoiceChip(
+                _PortionChoice(
                   label: const Text('0.5인분'),
                   selected: !_customGram &&
                       _sameGram(widget.candidate.intakeGram, baseGram * 0.5),
-                  onSelected: (_) => _selectPortion(baseGram * 0.5),
+                  onTap: () => _selectPortion(baseGram * 0.5),
                 ),
-                ChoiceChip(
+                _PortionChoice(
                   label: const Text('1인분'),
                   selected: !_customGram &&
                       _sameGram(widget.candidate.intakeGram, baseGram),
-                  onSelected: (_) => _selectPortion(baseGram),
+                  onTap: () => _selectPortion(baseGram),
                 ),
-                ChoiceChip(
+                _PortionChoice(
                   label: const Text('1.5인분'),
                   selected: !_customGram &&
                       _sameGram(widget.candidate.intakeGram, baseGram * 1.5),
-                  onSelected: (_) => _selectPortion(baseGram * 1.5),
+                  onTap: () => _selectPortion(baseGram * 1.5),
                 ),
-                ChoiceChip(
+                _PortionChoice(
                   label: const Text('직접 g 입력'),
                   selected: _customGram,
-                  onSelected: (_) => setState(() => _customGram = true),
+                  onTap: () => setState(() => _customGram = true),
                 ),
               ],
             ),
@@ -210,8 +228,10 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
               TextField(
                 controller: _controller,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: '섭취량', suffixText: 'g'),
+                decoration: const InputDecoration(
+                  labelText: '직접 입력',
+                  suffixText: 'g',
+                ),
                 onChanged: widget.onCustomGramChanged,
               ),
             ],
@@ -230,6 +250,229 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
   }
 
   bool _sameGram(double a, double b) => (a - b).abs() < 0.1;
+}
+
+class _SelectionToggle extends StatelessWidget {
+  const _SelectionToggle({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color:
+                selected ? AppColors.primary : AppColors.lightGreenBackground,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+            ),
+          ),
+          child: Icon(
+            selected ? Icons.check_rounded : Icons.add_rounded,
+            color: selected ? Colors.white : AppColors.primary,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoTile extends StatelessWidget {
+  const _InfoTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MatchStatusPanel extends StatelessWidget {
+  const _MatchStatusPanel({
+    required this.matchedFood,
+    this.onMatchManually,
+  });
+
+  final FoodItem? matchedFood;
+  final VoidCallback? onMatchManually;
+
+  @override
+  Widget build(BuildContext context) {
+    final food = matchedFood;
+    final matched = food != null;
+    final color = matched ? AppColors.primary : AppColors.orange;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            matched ? Icons.verified_outlined : Icons.search_off_outlined,
+            color: color,
+            size: 19,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  matched ? '로컬 DB 매칭 완료' : '로컬 DB 매칭 필요',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  matched
+                      ? '${food.name} · ${food.servingGram.round()}g 기준 · ${food.kcalPer100g.round()}kcal/100g'
+                      : '음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색으로 확인해 주세요.',
+                  style: AppTextStyles.caption,
+                ),
+                if (!matched && onMatchManually != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 36,
+                    child: TextButton.icon(
+                      onPressed: onMatchManually,
+                      icon: const Icon(Icons.search_rounded, size: 16),
+                      label: const Text('직접 검색으로 매칭하기'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PortionChoice extends StatelessWidget {
+  const _PortionChoice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Widget label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        constraints: const BoxConstraints(minHeight: 42),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color:
+              selected ? AppColors.primarySoft : AppColors.lightGreenBackground,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? AppColors.primary.withValues(alpha: 0.22)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_rounded,
+                  color: AppColors.primary, size: 16),
+              const SizedBox(width: 5),
+            ],
+            DefaultTextStyle(
+              style: TextStyle(
+                color:
+                    selected ? AppColors.primaryDark : AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              ),
+              child: label,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ConfidenceBadge extends StatelessWidget {

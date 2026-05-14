@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -11,8 +10,6 @@ import '../data/models/food_item.dart';
 
 abstract class VisionFoodService {
   const VisionFoodService();
-
-  String? get lastUserMessage => null;
 
   Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
     XFile image, {
@@ -24,14 +21,10 @@ class VisionFoodException implements Exception {
   const VisionFoodException(
     this.message, {
     this.statusCode,
-    this.code,
-    this.canFallback = true,
   });
 
   final String message;
   final int? statusCode;
-  final String? code;
-  final bool canFallback;
 
   @override
   String toString() => message;
@@ -129,11 +122,6 @@ class RemoteVisionFoodService extends VisionFoodService {
     final uri = Uri.parse('$normalizedBaseUrl/api/analyze-food');
     final closeClient = client == null;
     final requestClient = client ?? http.Client();
-    debugPrint(
-      '[AI_REMOTE_REQUEST] url=$uri '
-      'imageBase64Length=${imageBase64.length} mime=$mimeType '
-      'foods=${availableFoods.length}',
-    );
 
     try {
       final response = await requestClient
@@ -154,17 +142,10 @@ class RemoteVisionFoodService extends VisionFoodService {
           )
           .timeout(timeout);
 
-      debugPrint(
-        '[AI_REMOTE_RESPONSE] status=${response.statusCode} '
-        'bodyPreview=${_preview(response.body)}',
-      );
-
       final Map<String, dynamic> decoded;
       try {
         decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      } catch (error, stackTrace) {
-        debugPrint('[AI_REMOTE_PARSE_FAIL] error=$error');
-        debugPrintStack(stackTrace: stackTrace);
+      } catch (_) {
         throw VisionFoodException(
           'AI 분석 응답 형식이 올바르지 않습니다.',
           statusCode: response.statusCode,
@@ -176,36 +157,23 @@ class RemoteVisionFoodService extends VisionFoodService {
         throw VisionFoodException(
           message,
           statusCode: response.statusCode,
-          code: _errorCode(decoded),
-          canFallback: _canFallbackForStatus(response.statusCode),
         );
       }
 
       final foods = decoded['foods'];
       if (foods is! List) {
-        debugPrint('[AI_REMOTE_PARSE_FAIL] error=foods field is not a list');
         throw const VisionFoodException('AI 분석 응답 형식이 올바르지 않습니다.');
       }
-      debugPrint('[AI_REMOTE_PARSE_OK] foods=${foods.length}');
 
       return [
         for (var index = 0; index < foods.length && index < 5; index++)
           _candidateFromJson(foods[index], index),
       ];
-    } on TimeoutException catch (error, stackTrace) {
-      debugPrint('[AI_REMOTE_ERROR] error=$error');
-      debugPrintStack(stackTrace: stackTrace);
+    } on TimeoutException {
       throw const VisionFoodException('AI 분석 요청 시간이 초과되었습니다.');
-    } on VisionFoodException catch (error, stackTrace) {
-      debugPrint(
-        '[AI_REMOTE_ERROR] error=$error '
-        'status=${error.statusCode} code=${error.code}',
-      );
-      debugPrintStack(stackTrace: stackTrace);
+    } on VisionFoodException {
       rethrow;
-    } catch (error, stackTrace) {
-      debugPrint('[AI_REMOTE_ERROR] error=$error');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (_) {
       throw const VisionFoodException('AI 분석 결과를 불러오지 못했습니다.');
     } finally {
       if (closeClient) {
@@ -278,91 +246,5 @@ class RemoteVisionFoodService extends VisionFoodService {
       }
     }
     return null;
-  }
-
-  String? _errorCode(Map<String, dynamic> decoded) {
-    final error = decoded['error'];
-    if (error is Map<String, dynamic>) {
-      final code = error['code'];
-      if (code is String && code.trim().isNotEmpty) {
-        return code;
-      }
-    }
-    return null;
-  }
-
-  bool _canFallbackForStatus(int statusCode) {
-    return statusCode != 400 && statusCode != 413 && statusCode != 415;
-  }
-
-  String _preview(String body) {
-    final compact = body.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (compact.length <= 500) {
-      return compact;
-    }
-    return '${compact.substring(0, 500)}...';
-  }
-}
-
-class FallbackVisionFoodService extends VisionFoodService {
-  FallbackVisionFoodService({
-    required this.primary,
-    this.fallback = const MockVisionFoodService(),
-  });
-
-  final VisionFoodService primary;
-  final VisionFoodService fallback;
-  String? _lastUserMessage;
-
-  @override
-  String? get lastUserMessage => _lastUserMessage;
-
-  @override
-  Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
-    XFile image, {
-    List<FoodItem> availableFoods = const [],
-  }) async {
-    _lastUserMessage = null;
-    try {
-      return await primary.detectFoodsFromImage(
-        image,
-        availableFoods: availableFoods,
-      );
-    } on VisionFoodException catch (error, stackTrace) {
-      if (!error.canFallback) {
-        debugPrint(
-          '[AI_FALLBACK] skipped status=${error.statusCode} code=${error.code}',
-        );
-        debugPrintStack(stackTrace: stackTrace);
-        rethrow;
-      }
-      // Portfolio/demo mode keeps a mock fallback so the UI can be shown even
-      // when AI_API_BASE_URL or the remote provider is temporarily unavailable.
-      // Production can remove this wrapper to surface VisionFoodException.
-      debugPrint(
-        '[AI_FALLBACK] using MockVisionFoodService after remote failure '
-        'error=$error',
-      );
-      debugPrintStack(stackTrace: stackTrace);
-      _lastUserMessage = '원격 AI 분석에 실패해 데모 후보를 표시합니다.';
-      return fallback.detectFoodsFromImage(
-        image,
-        availableFoods: availableFoods,
-      );
-    } catch (error, stackTrace) {
-      // Portfolio/demo mode keeps a mock fallback so the UI can be shown even
-      // when AI_API_BASE_URL or the remote provider is temporarily unavailable.
-      // Production can remove this wrapper to surface VisionFoodException.
-      debugPrint(
-        '[AI_FALLBACK] using MockVisionFoodService after remote failure '
-        'error=$error',
-      );
-      debugPrintStack(stackTrace: stackTrace);
-      _lastUserMessage = '원격 AI 분석에 실패해 데모 후보를 표시합니다.';
-      return fallback.detectFoodsFromImage(
-        image,
-        availableFoods: availableFoods,
-      );
-    }
   }
 }

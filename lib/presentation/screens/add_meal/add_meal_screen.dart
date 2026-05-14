@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../app.dart';
-import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/nutrition_calculator.dart';
@@ -57,9 +56,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
   bool _saving = false;
   bool _analyzing = false;
   bool _analysisAttempted = false;
-  String? _analysisDebugTitle;
-  String? _analysisDebugMessage;
-  String? _analysisDebugDetails;
   List<DetectedFoodCandidate> _aiCandidates = [];
 
   @override
@@ -149,9 +145,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
           onManualMatch: () {
             _scrollToManualSearch();
           },
-          debugTitle: _analysisDebugTitle,
-          debugMessage: _analysisDebugMessage,
-          debugDetails: _analysisDebugDetails,
           resultsKey: _aiResultsKey,
         ),
         MealTimeSection(
@@ -233,9 +226,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
         _imageDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
         _aiCandidates = [];
         _analysisAttempted = false;
-        _analysisDebugTitle = null;
-        _analysisDebugMessage = null;
-        _analysisDebugDetails = null;
       });
     } catch (_) {
       _showSnack(source == ImageSource.camera
@@ -247,12 +237,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
   Future<void> _detectFoodsWithAi() async {
     final image = _pickedImage;
     final controller = AppScope.of(context);
-    debugPrint(
-      '[AI_ANALYZE_START] hasImage=${image != null} '
-      'hasDataUrl=${_imageDataUrl?.isNotEmpty ?? false} '
-      'bytes=${_imageBytes?.length ?? 0} '
-      'mime=${_mimeTypeForDebug(image)} foods=${controller.foods.length}',
-    );
     if (image == null) {
       _showSnack('먼저 음식 사진을 업로드하거나 촬영해 주세요.');
       return;
@@ -261,13 +245,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
     setState(() {
       _analyzing = true;
       _analysisAttempted = false;
-      _analysisDebugTitle = null;
-      _analysisDebugMessage = null;
-      _analysisDebugDetails = null;
     });
     try {
-      final visionFoodService = controller.visionFoodService;
-      final candidates = await visionFoodService.detectFoodsFromImage(
+      final candidates =
+          await controller.visionFoodService.detectFoodsFromImage(
         image,
         availableFoods: controller.foods,
       );
@@ -277,18 +258,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
       setState(() {
         _aiCandidates = candidates;
         _analysisAttempted = true;
-        final fallbackMessage = visionFoodService.lastUserMessage;
-        if (fallbackMessage != null) {
-          _analysisDebugTitle = '원격 AI 대신 데모 후보를 표시했어요';
-          _analysisDebugMessage = fallbackMessage;
-          _analysisDebugDetails = _analysisDebugDetailsFor();
-        }
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToAiResults());
       if (candidates.isEmpty) {
         _showSnack('음식 후보를 찾지 못했습니다. 직접 검색으로 추가해 주세요.');
-      } else if (visionFoodService.lastUserMessage != null) {
-        _showSnack(visionFoodService.lastUserMessage!);
       } else {
         _showSnack('AI가 음식 후보를 찾았습니다. 실제 음식명과 섭취량을 확인해 주세요.');
       }
@@ -297,25 +270,16 @@ class _AddMealScreenState extends State<AddMealScreen> {
         setState(() {
           _aiCandidates = [];
           _analysisAttempted = true;
-          _analysisDebugTitle = 'AI 분석 연결을 확인해 주세요';
-          _analysisDebugMessage = _analysisDebugMessageFor(error);
-          _analysisDebugDetails = _analysisDebugDetailsFor(error);
         });
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _scrollToAiResults());
       }
       _showSnack(error.message);
-    } catch (error, stackTrace) {
-      debugPrint('[AI_ANALYZE_ERROR] error=$error');
-      debugPrintStack(stackTrace: stackTrace);
+    } catch (_) {
       if (mounted) {
         setState(() {
           _aiCandidates = [];
           _analysisAttempted = true;
-          _analysisDebugTitle = 'AI 분석 연결을 확인해 주세요';
-          _analysisDebugMessage =
-              '원격 AI 분석 중 알 수 없는 문제가 발생했어요. 아래 연결 정보를 확인해 주세요.';
-          _analysisDebugDetails = _analysisDebugDetailsFor();
         });
         WidgetsBinding.instance
             .addPostFrameCallback((_) => _scrollToAiResults());
@@ -326,74 +290,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
         setState(() => _analyzing = false);
       }
     }
-  }
-
-  String _analysisDebugMessageFor(VisionFoodException error) {
-    final baseUrl = AppConfig.aiApiBaseUrl.trim();
-    if (!AppConfig.hasAiApiBaseUrl) {
-      return 'AI_API_BASE_URL이 설정되지 않아 원격 AI 서버 주소를 알 수 없습니다. '
-          '실제 분석을 테스트하려면 API 서버를 켠 뒤 Flutter를 서버 주소와 함께 다시 실행해 주세요.';
-    }
-    if (AppConfig.isAiApiBaseUrlPlaceholder) {
-      return 'AI_API_BASE_URL이 예시 주소로 되어 있어 실제 서버로 요청할 수 없습니다. '
-          'Vercel 배포 주소나 로컬 API 주소로 바꿔 주세요.';
-    }
-    if (error.statusCode == null) {
-      return '현재 앱은 $baseUrl/api/analyze-food 로 요청 중입니다. '
-          '로컬에서는 Flutter 서버(127.0.0.1:5173)와 API 서버(localhost:3000)가 별도로 떠 있어야 해요.';
-    }
-    return switch (error.statusCode) {
-      400 => '서버가 요청 본문을 거절했습니다. 이미지 형식이나 요청 값이 올바른지 확인해 주세요.',
-      401 ||
-      403 =>
-        'OpenAI API Key 인증에 실패했습니다. Vercel 환경변수의 OPENAI_API_KEY를 확인해 주세요.',
-      404 =>
-        '$baseUrl 에서 /api/analyze-food API를 찾지 못했습니다. Vercel 프로젝트 루트에 api/analyze-food.ts가 배포됐는지 확인해 주세요.',
-      413 => '이미지 용량이 서버 제한보다 큽니다. 더 작은 이미지로 다시 시도해 주세요.',
-      429 => 'OpenAI 요청 한도 또는 결제 한도에 걸렸을 수 있습니다.',
-      500 ||
-      502 ||
-      503 ||
-      504 =>
-        '서버 또는 OpenAI 호출 쪽에서 실패했습니다. /api/health와 Vercel Runtime Logs를 확인해 주세요.',
-      _ => '원격 AI 서버가 오류를 반환했습니다. 아래 상태 코드와 API 주소를 확인해 주세요.',
-    };
-  }
-
-  String _analysisDebugDetailsFor([VisionFoodException? error]) {
-    final baseUrl = AppConfig.aiApiBaseUrl.trim();
-    final normalizedBaseUrl = baseUrl.replaceAll(RegExp(r'/+$'), '');
-    final healthUrl = normalizedBaseUrl.isEmpty
-        ? '(AI_API_BASE_URL 없음)'
-        : '$normalizedBaseUrl/api/health';
-    final analyzeUrl = normalizedBaseUrl.isEmpty
-        ? '(AI_API_BASE_URL 없음)'
-        : '$normalizedBaseUrl/api/analyze-food';
-    return [
-      'AI_API_BASE_URL: ${baseUrl.isEmpty ? '(없음)' : baseUrl}',
-      'Health check: $healthUrl',
-      'Analyze API: $analyzeUrl',
-      if (error?.statusCode != null) 'HTTP status: ${error!.statusCode}',
-      if (error?.code != null) 'Error code: ${error!.code}',
-      if (error != null) 'Message: ${error.message}',
-      '로컬 API 실행: npx vercel dev --listen 3000',
-      'Flutter 실행: flutter run -d chrome --dart-define=AI_API_BASE_URL=http://localhost:3000',
-    ].join('\n');
-  }
-
-  String _mimeTypeForDebug(XFile? image) {
-    final explicit = image?.mimeType;
-    if (explicit != null && explicit.startsWith('image/')) {
-      return explicit;
-    }
-    final path = image?.path.toLowerCase() ?? '';
-    if (path.endsWith('.png')) {
-      return 'image/png';
-    }
-    if (path.endsWith('.webp')) {
-      return 'image/webp';
-    }
-    return 'image/jpeg';
   }
 
   double _currentGrams(FoodItem? food) {
@@ -568,9 +464,6 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _imageDataUrl = null;
       _aiCandidates = [];
       _analysisAttempted = false;
-      _analysisDebugTitle = null;
-      _analysisDebugMessage = null;
-      _analysisDebugDetails = null;
       _gramController.clear();
     });
   }

@@ -50,13 +50,6 @@ function sendError(
   });
 }
 
-function preview(value: unknown) {
-  const text =
-    typeof value === 'string' ? value : JSON.stringify(value ?? null);
-  const compact = text.replace(/\s+/g, ' ').trim();
-  return compact.length > 500 ? `${compact.slice(0, 500)}...` : compact;
-}
-
 function parseBody(body: unknown): any {
   if (typeof body === 'string') {
     return JSON.parse(body);
@@ -145,12 +138,6 @@ async function callOpenAi({
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
-  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
-  console.log(
-    `[API_ENV] provider=${provider} model=${model} hasOpenAIKey=${Boolean(
-      apiKey,
-    )}`,
-  );
   if (!apiKey) {
     return {
       statusCode: 503,
@@ -171,9 +158,6 @@ async function callOpenAi({
   try {
     // TODO: Cache repeated image hashes to avoid paying for duplicate analysis.
     // TODO: Add per-user daily analysis limits before production launch.
-    console.log(
-      `[API_OPENAI_REQUEST] model=${model} detail=low timeoutMs=${OPENAI_TIMEOUT_MS}`,
-    );
     const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
@@ -210,16 +194,10 @@ async function callOpenAi({
     });
 
     const responseText = await response.text();
-    console.log(
-      `[API_OPENAI_RESPONSE] status=${response.status} preview=${preview(
-        responseText,
-      )}`,
-    );
     let payload: any = null;
     try {
       payload = JSON.parse(responseText);
     } catch (error: any) {
-      console.error(`[API_OPENAI_PARSE_FAIL] error=${error?.message ?? error}`);
       if (!response.ok) {
         return {
           statusCode: response.status,
@@ -273,7 +251,6 @@ async function callOpenAi({
     try {
       parsed = JSON.parse(content);
     } catch (error: any) {
-      console.error(`[API_PARSE_FAIL] error=${error?.message ?? error}`);
       return {
         statusCode: 502,
         body: {
@@ -286,7 +263,6 @@ async function callOpenAi({
       };
     }
     const foods = normalizeAnalysisFoods(parsed.foods, availableFoods);
-    console.log(`[API_PARSE_OK] foods=${foods.length}`);
     return {
       statusCode: 200,
       body: {
@@ -295,7 +271,6 @@ async function callOpenAi({
       },
     };
   } catch (error: any) {
-    console.error(`[API_ERROR] error=${error?.message ?? error}`);
     return {
       statusCode: error?.name === 'AbortError' ? 504 : 502,
       body: {
@@ -321,12 +296,6 @@ async function callOpenAi({
 }
 
 export default async function handler(req: any, res: any) {
-  const origin = String(req.headers?.origin ?? '');
-  const contentType = String(req.headers?.['content-type'] ?? '');
-  console.log(
-    `[API_ANALYZE_START] method=${req.method} origin=${origin || '-'} contentType=${contentType || '-'}`,
-  );
-
   if (req.method === 'OPTIONS') {
     setJsonHeaders(res, 204);
     res.end();
@@ -339,13 +308,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = parseBody(req.body);
-    console.log('[API_BODY_PARSE] ok=true');
     const imageBase64 = String(body.imageBase64 ?? '').trim();
     const mimeType = String(body.mimeType ?? '').trim() || 'image/jpeg';
     const availableFoods = normalizeFoods(body.availableFoods);
-    console.log(
-      `[API_BODY] imageBase64Length=${imageBase64.length} mime=${mimeType} foods=${availableFoods.length}`,
-    );
 
     if (!imageBase64) {
       sendError(res, 400, 'IMAGE_REQUIRED', 'imageBase64가 필요합니다.');
@@ -362,11 +327,6 @@ export default async function handler(req: any, res: any) {
 
     const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
     if (provider !== 'openai') {
-      console.log(
-        `[API_ENV] provider=${provider} model=${process.env.AI_MODEL?.trim() || 'gpt-4o-mini'} hasOpenAIKey=${Boolean(
-          process.env.OPENAI_API_KEY,
-        )}`,
-      );
       sendError(
         res,
         400,
@@ -379,7 +339,6 @@ export default async function handler(req: any, res: any) {
     const result = await callOpenAi({ imageBase64, mimeType, availableFoods });
     sendJson(res, result.statusCode, result.body);
   } catch (error: any) {
-    console.error(`[API_BODY_PARSE] ok=false error=${error?.message ?? error}`);
     sendError(
       res,
       400,
