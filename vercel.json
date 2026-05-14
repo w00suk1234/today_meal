@@ -1,8 +1,8 @@
 {
-  "buildCommand": "flutter build web --release",
+  "buildCommand": "bash scripts/vercel_build.sh",
   "outputDirectory": "build/web",
-  "installCommand": "flutter pub get",
+  "installCommand": "echo \"Flutter dependencies are installed during the Vercel build step.\"",
   "rewrites": [
-    {"source": "/(.*)", "destination": "/index.html"}
+    {"source": "/:path((?!api/).*)", "destination": "/index.html"}
   ]
 }

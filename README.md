@@ -3,12 +3,12 @@
 > 사진 기반 AI 음식 후보, 식단 기록, 개인 건강 지표, 식사 시간 피드백을 결합한 Flutter 포트폴리오 앱
 
 오늘의 식단은 음식 사진을 업로드하고, AI 후보 추정 흐름을 통해 식단을 기록하는 모바일/Web 앱 MVP입니다.  
-현재 버전은 실제 유료 VLM API를 호출하지 않고 `MockVisionFoodService`로 AI 분석 UX를 구현했습니다. 칼로리와 탄단지는 AI가 확정하지 않으며, 로컬 음식 DB와 사용자가 확인한 섭취량을 기준으로 앱 내부에서 계산합니다.
+기본 실행은 `MockVisionFoodService`로 AI 분석 UX를 시연하고, `AI_API_BASE_URL`이 설정되면 Vercel API Route를 통해 실제 Vision AI 음식 후보 분석을 호출합니다. 칼로리와 탄단지는 AI가 확정하지 않으며, 로컬 음식 DB와 사용자가 확인한 섭취량을 기준으로 앱 내부에서 계산합니다.
 
 ## 주요 기능
 
 - 음식 사진 업로드 및 카메라 촬영
-- Mock AI 기반 음식 후보 표시
+- Mock/Remote AI 기반 음식 후보 표시
 - 음식 후보 체크/해제 및 섭취량 조정
 - 로컬 음식 DB 기반 칼로리/탄수화물/단백질/지방 계산
 - 오늘 식단 대시보드
@@ -90,10 +90,10 @@ supabase/
 
 ## AI/VLM 설계
 
-현재 앱은 실제 OpenAI, Gemini, Claude API를 호출하지 않습니다.
+기본 실행은 실제 OpenAI, Gemini, Claude API를 호출하지 않고 Mock 후보를 반환합니다. `AI_API_BASE_URL`을 넣어 빌드하면 Flutter Web 앱이 같은 Vercel 프로젝트의 `/api/analyze-food` 서버 API를 호출합니다.
 
 ```text
-현재 구조
+기본 데모 구조
 Flutter App
 → MockVisionFoodService
 → 데모 음식 후보 반환
@@ -102,13 +102,12 @@ Flutter App
 → 앱 내부 계산
 ```
 
-추후 실제 VLM을 붙일 때는 Flutter 앱에 API Key를 넣지 않고 서버 측에서만 호출해야 합니다.
-
 ```text
-권장 확장 구조
+원격 Vision AI 구조
 Flutter App
-→ Vercel API Route 또는 Supabase Edge Function
-→ OpenAI/Gemini VLM API
+→ RemoteVisionFoodService
+→ Vercel API Route (/api/analyze-food)
+→ OpenAI Vision model
 → JSON 응답
 → Flutter App 표시
 ```
@@ -255,35 +254,182 @@ Windows 빠른 실행:
 .\run_web.bat
 ```
 
-## Android APK 빌드
+## Android APK 빌드 및 실기기 테스트
+
+Android 앱도 Flutter 클라이언트에는 `AI_API_BASE_URL`만 포함하고, 실제 `OPENAI_API_KEY`는 Vercel Environment Variables에만 저장합니다. APK는 Vercel API Route(`/api/analyze-food`)를 호출해 음식 후보 분석 결과를 받습니다.
+
+필요 환경:
+
+- Android Studio 또는 Android SDK Command-line Tools
+- Android SDK Platform / Build Tools
+- `adb`가 포함된 Platform Tools
+- Android SDK가 기본 위치가 아니라면 `flutter config --android-sdk <Android SDK 경로>`로 경로 지정
+
+포트폴리오/실기기 테스트용 release APK 빌드:
+
+```powershell
+flutter build apk --release `
+  --dart-define=AI_API_BASE_URL=https://your-vercel-app.vercel.app
+```
+
+Vercel 서버 없이 Mock 분석만 테스트하려면 `AI_API_BASE_URL`을 빼고 빌드합니다.
 
 ```powershell
 flutter build apk --release
 ```
 
-빌드 결과:
+APK 결과물:
 
 ```text
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
+실기기 설치 테스트:
+
+```powershell
+adb devices
+adb install -r build/app/outputs/flutter-apk/app-release.apk
+```
+
+Google Play 업로드용 AAB 빌드가 필요한 경우:
+
+```powershell
+flutter build appbundle --release `
+  --dart-define=AI_API_BASE_URL=https://your-vercel-app.vercel.app
+```
+
+AAB 결과물:
+
+```text
+build/app/outputs/bundle/release/app-release.aab
+```
+
+Web 배포와 Android 앱의 차이:
+
+- Flutter Web은 Vercel에 정적 파일(`build/web`)로 배포되고, 같은 Vercel 프로젝트의 `/api/analyze-food`를 호출합니다.
+- Android APK는 기기에 설치되는 앱이며, Vercel에는 올라가지 않습니다.
+- Android APK도 동일하게 `AI_API_BASE_URL`의 Vercel API 서버를 호출합니다.
+- `OPENAI_API_KEY`는 Android 코드, APK, `--dart-define`에 넣지 않습니다.
+
+주의사항:
+
+- APK는 포트폴리오/테스트용 빌드입니다.
+- Google Play 정식 출시는 별도 서명 키 관리, 정책 검토, 개인정보처리방침, 데이터 안전 섹션 준비가 필요합니다.
+- 건강/다이어트 앱이므로 의료 조언이나 진단처럼 보이는 문구는 피해야 합니다.
+- AI 분석은 참고용이며 최종 식단 기록과 섭취량은 사용자가 확인해야 합니다.
+
 ## Web 빌드 및 Vercel 배포
+
+Flutter Web은 정적 파일로 `build/web`에 빌드되고, `api/analyze-food.ts`는 Vercel Serverless Function으로 함께 배포됩니다. API Route까지 같이 올라가야 하므로 `build/web` 폴더 안에서 배포하지 말고 반드시 프로젝트 루트에서 배포합니다.
+
+로컬 Web 빌드:
 
 ```powershell
 flutter build web --release
 ```
 
-Vercel CLI 배포:
+원격 AI 분석 서버 주소를 빌드에 넣는 경우:
 
 ```powershell
-cd build/web
+flutter build web --release `
+  --dart-define=AI_API_BASE_URL=https://your-vercel-app.vercel.app
+```
+
+### Vercel 프로젝트 설정
+
+`vercel.json`은 아래처럼 Flutter Web 정적 출력과 API Route를 함께 처리합니다.
+
+```json
+{
+  "buildCommand": "bash scripts/vercel_build.sh",
+  "outputDirectory": "build/web",
+  "installCommand": "echo \"Flutter dependencies are installed during the Vercel build step.\"",
+  "rewrites": [
+    {"source": "/:path((?!api/).*)", "destination": "/index.html"}
+  ]
+}
+```
+
+- `outputDirectory`는 Flutter Web 결과물인 `build/web`입니다.
+- `api/analyze-food.ts`는 프로젝트 루트의 `api/` 폴더에 있어 Vercel Serverless Function으로 배포됩니다.
+- SPA 라우팅용 rewrite는 `/api/*`를 제외하므로 `/api/analyze-food` 요청은 Flutter `index.html`로 가지 않습니다.
+- Vercel 빌드 환경에는 Flutter SDK가 없을 수 있어 `scripts/vercel_build.sh`가 Flutter를 설치한 뒤 `flutter build web --release`를 실행합니다.
+- 빌드 스크립트는 `AI_API_BASE_URL`이 있으면 그대로 쓰고, 없으면 Vercel의 `VERCEL_URL`을 이용해 배포 URL을 자동 주입합니다.
+
+Vercel Dashboard > Project Settings > Environment Variables에 서버용 값을 등록합니다.
+
+```text
+OPENAI_API_KEY=실제 OpenAI API Key
+AI_PROVIDER=openai
+AI_MODEL=gpt-4o-mini
+```
+
+Flutter 클라이언트에 들어가는 값은 공개 서버 주소뿐입니다. Production URL이 확정된 뒤 명시적으로 고정하고 싶다면 Vercel Environment Variables에 아래 값을 추가하고 재배포합니다.
+
+```text
+AI_API_BASE_URL=https://your-vercel-app.vercel.app
+```
+
+Vercel CLI 배포는 프로젝트 루트에서 실행합니다.
+
+```powershell
 npx vercel --prod
+```
+
+아직 Vercel 프로젝트가 없다면 둘 중 하나로 만듭니다.
+
+1. Vercel Dashboard에서 Add New Project를 누르고 GitHub의 `w00suk1234/today_meal` 저장소를 Import합니다.
+2. 또는 프로젝트 루트에서 `npx vercel`을 실행해 CLI 안내에 따라 새 프로젝트로 link/deploy합니다.
+
+프로젝트를 만들 때 Root Directory는 저장소 루트로 두어야 합니다. `build/web`을 루트로 잡으면 `api/analyze-food.ts`가 배포되지 않습니다.
+
+### 배포 후 smoke test
+
+먼저 잘못된 요청이 JSON 에러로 돌아오는지 확인합니다. 이 테스트는 OpenAI 비용을 쓰지 않습니다.
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://your-vercel-app.vercel.app/api/analyze-food" `
+  -ContentType "application/json" `
+  -Body "{}"
+```
+
+예상 응답:
+
+```json
+{
+  "error": {
+    "code": "IMAGE_REQUIRED",
+    "message": "imageBase64가 필요합니다."
+  }
+}
+```
+
+실제 Vision AI 호출 테스트는 작은 음식 사진으로 진행합니다.
+
+```powershell
+$imageBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("sample-food.jpg"))
+$body = @{
+  imageBase64 = $imageBase64
+  mimeType = "image/jpeg"
+  availableFoods = @(
+    @{ id = "brown_rice"; name = "잡곡밥"; category = "밥" },
+    @{ id = "grilled_mackerel"; name = "고등어구이"; category = "생선" }
+  )
+} | ConvertTo-Json -Depth 5
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri "https://your-vercel-app.vercel.app/api/analyze-food" `
+  -ContentType "application/json" `
+  -Body $body
 ```
 
 ## 프로젝트 포인트
 
 - 단순 CRUD 앱이 아니라 식단 기록, 건강 지표, 생활 패턴 피드백을 하나의 흐름으로 연결
-- 실제 AI 비용 없이 AI 기반 UX를 Mock 서비스로 먼저 구현
-- 추후 VLM, Supabase, Edge Function으로 확장 가능한 계층 구조
+- Mock 데모와 서버 경유 Vision AI 분석을 모두 지원하는 계층 구조
+- Flutter 클라이언트에 유료 AI Provider API Key를 넣지 않는 안전한 서버 경유 구조
 - Web, Android, iOS 구조를 모두 유지
 - 의료/처방 앱이 아닌 참고용 건강 관리 앱으로 안전한 문구와 책임 범위 명시

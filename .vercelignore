@@ -1,0 +1,11 @@
+.dart_tool/
+.env
+.env.*
+.tooling/
+build/
+android/.gradle/
+android/local.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
+ios/Pods/
