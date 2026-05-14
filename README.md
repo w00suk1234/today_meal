@@ -188,6 +188,53 @@ flutter run -d chrome `
 - AI 결과는 최종 판단이 아니라 후보입니다. 칼로리와 탄단지는 AI가 확정하지 않고 로컬 음식 DB와 사용자가 확인한 섭취량 기준으로 계산합니다.
 - 서버 저장 시 `image_url`에는 Supabase Storage URL 또는 외부 이미지 URL만 저장하고, `data:image/...` base64 문자열은 저장하지 않습니다.
 
+## 실제 Vision AI 연동 방법
+
+Flutter 앱은 `POST /api/analyze-food` 서버 API에 음식 이미지를 전송하고, 서버 API만 AI Provider API Key를 사용합니다. OpenAI/Gemini/Claude 같은 유료 Provider Key는 Flutter Web/mobile 코드나 `--dart-define`에 넣지 않습니다.
+
+로컬 서버 환경변수 예시:
+
+```powershell
+$env:AI_PROVIDER="openai"
+$env:AI_MODEL="gpt-4o-mini"
+$env:OPENAI_API_KEY="your-openai-api-key"
+```
+
+`AI_MODEL`은 교체 가능합니다. 비워두면 서버 API는 저비용 vision 입력이 가능한 기본 모델로 `gpt-4o-mini`를 사용합니다.
+
+Flutter 로컬 실행 예시:
+
+```powershell
+flutter run -d chrome `
+  --dart-define=AI_API_BASE_URL=http://localhost:3000
+```
+
+Vercel 배포 시 Project Settings > Environment Variables에 아래 값을 등록합니다.
+
+```text
+AI_PROVIDER=openai
+AI_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your-openai-api-key
+```
+
+배포된 앱에서 원격 분석을 쓰려면 Flutter 빌드에도 서버 주소를 전달합니다.
+
+```powershell
+flutter build web --release `
+  --dart-define=AI_API_BASE_URL=https://your-vercel-app.vercel.app
+```
+
+AI 분석은 음식 후보, 신뢰도, 설명, 예상 섭취량, 로컬 DB 매칭 후보만 반환합니다. 칼로리와 탄수화물/단백질/지방은 AI가 만들지 않고, 기존 로컬 음식 DB와 사용자가 확인한 섭취량 기준으로 계산합니다.
+
+비용 방어 전략:
+
+- 사용자가 `AI 음식 분석 시작` 버튼을 눌렀을 때만 분석 요청
+- Flutter에서 이미지를 리사이즈/압축한 뒤 전송
+- 서버 응답 후보 최대 5개로 제한
+- 서버에서 과도하게 큰 이미지 요청 거부
+- TODO: 같은 이미지 반복 분석 캐시
+- TODO: 사용자별 하루 분석 횟수 제한
+
 ## 실행 방법
 
 패키지 설치:
