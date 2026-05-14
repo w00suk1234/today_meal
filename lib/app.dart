@@ -359,8 +359,10 @@ class _AppShellState extends State<AppShell> {
                   child: Column(
                     children: [
                       Expanded(
-                          child:
-                              IndexedStack(index: _index, children: screens)),
+                        child: ClipRect(
+                          child: IndexedStack(index: _index, children: screens),
+                        ),
+                      ),
                       AppBottomNavigation(
                         selectedIndex: _index,
                         onSelected: _handleTabSelected,

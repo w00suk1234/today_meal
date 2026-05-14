@@ -35,7 +35,7 @@ class AppBottomNavigation extends StatelessWidget {
         border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
           BoxShadow(
-              color: AppColors.shadow, blurRadius: 20, offset: Offset(0, -8)),
+              color: AppColors.shadow, blurRadius: 10, offset: Offset(0, -3)),
         ],
       ),
       child: Row(
