@@ -73,39 +73,45 @@ class _BottomNavButton extends StatelessWidget {
       label: item.label,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primarySoft : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(selected ? item.activeIcon : item.icon,
-                    color:
-                        selected ? AppColors.primary : AppColors.textSecondary,
-                    size: 21),
-                const SizedBox(height: 3),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
+        child: Focus(
+          canRequestFocus: false,
+          descendantsAreFocusable: false,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+              decoration: BoxDecoration(
+                color: selected ? AppColors.primarySoft : Colors.transparent,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(selected ? item.activeIcon : item.icon,
                       color: selected
                           ? AppColors.primary
                           : AppColors.textSecondary,
-                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                      fontSize: 11,
+                      size: 21),
+                  const SizedBox(height: 3),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      item.label,
+                      style: TextStyle(
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                        fontWeight:
+                            selected ? FontWeight.w900 : FontWeight.w700,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
