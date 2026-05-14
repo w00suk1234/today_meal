@@ -69,6 +69,9 @@ class _BottomNavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foregroundColor =
+        selected ? AppColors.primary : AppColors.navInactive;
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: Listener(
@@ -85,20 +88,30 @@ class _BottomNavButton extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(selected ? item.activeIcon : item.icon,
-                  color: selected ? AppColors.primary : AppColors.textSecondary,
-                  size: 21),
+              TweenAnimationBuilder<Color?>(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                tween: ColorTween(end: foregroundColor),
+                builder: (context, color, _) {
+                  return Icon(
+                    selected ? item.activeIcon : item.icon,
+                    color: color ?? foregroundColor,
+                    size: 21,
+                  );
+                },
+              ),
               const SizedBox(height: 3),
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text(
-                  item.label,
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
                   style: TextStyle(
-                    color:
-                        selected ? AppColors.primary : AppColors.textSecondary,
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    color: foregroundColor,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
                     fontSize: 11,
                   ),
+                  child: Text(item.label),
                 ),
               ),
             ],

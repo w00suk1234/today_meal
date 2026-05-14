@@ -1,6 +1,7 @@
 const MAX_IMAGE_BASE64_LENGTH = 4_000_000;
 const MAX_AVAILABLE_FOODS = 200;
 const MAX_OUTPUT_FOODS = 5;
+const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_CHAT_COMPLETIONS_URL =
   'https://api.openai.com/v1/chat/completions';
 
@@ -22,6 +23,7 @@ type AnalysisFood = {
 function setJsonHeaders(res: any, statusCode: number) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  // TODO: Restrict this to the deployed Flutter Web domain before production.
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -37,8 +39,22 @@ function sendError(
   statusCode: number,
   code: string,
   message: string,
+  details?: string,
 ) {
-  sendJson(res, statusCode, { error: { code, message } });
+  sendJson(res, statusCode, {
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {}),
+    },
+  });
+}
+
+function preview(value: unknown) {
+  const text =
+    typeof value === 'string' ? value : JSON.stringify(value ?? null);
+  const compact = text.replace(/\s+/g, ' ').trim();
+  return compact.length > 500 ? `${compact.slice(0, 500)}...` : compact;
 }
 
 function parseBody(body: unknown): any {
@@ -128,6 +144,13 @@ async function callOpenAi({
   availableFoods: ApiFood[];
 }) {
   const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
+  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
+  console.log(
+    `[API_ENV] provider=${provider} model=${model} hasOpenAIKey=${Boolean(
+      apiKey,
+    )}`,
+  );
   if (!apiKey) {
     return {
       statusCode: 503,
@@ -136,18 +159,21 @@ async function callOpenAi({
           code: 'OPENAI_API_KEY_MISSING',
           message:
             'OPENAI_API_KEY가 서버 환경변수에 없습니다. Vercel Environment Variables에 추가해 주세요.',
+          details: 'hasOpenAIKey=false',
         },
       },
     };
   }
 
-  const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
     // TODO: Cache repeated image hashes to avoid paying for duplicate analysis.
     // TODO: Add per-user daily analysis limits before production launch.
+    console.log(
+      `[API_OPENAI_REQUEST] model=${model} detail=low timeoutMs=${OPENAI_TIMEOUT_MS}`,
+    );
     const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
@@ -183,15 +209,48 @@ async function callOpenAi({
       }),
     });
 
-    const payload = await response.json().catch(() => null);
+    const responseText = await response.text();
+    console.log(
+      `[API_OPENAI_RESPONSE] status=${response.status} preview=${preview(
+        responseText,
+      )}`,
+    );
+    let payload: any = null;
+    try {
+      payload = JSON.parse(responseText);
+    } catch (error: any) {
+      console.error(`[API_OPENAI_PARSE_FAIL] error=${error?.message ?? error}`);
+      if (!response.ok) {
+        return {
+          statusCode: response.status,
+          body: {
+            error: {
+              code: 'OPENAI_REQUEST_FAILED',
+              message: 'OpenAI request failed',
+              details: `status=${response.status}`,
+            },
+          },
+        };
+      }
+      return {
+        statusCode: 502,
+        body: {
+          error: {
+            code: 'OPENAI_RESPONSE_PARSE_FAILED',
+            message: 'OpenAI 응답을 해석하지 못했습니다.',
+            details: error?.message ?? String(error),
+          },
+        },
+      };
+    }
     if (!response.ok) {
       return {
         statusCode: response.status,
         body: {
           error: {
-            code: 'AI_PROVIDER_ERROR',
-            message: 'AI 분석 서버 호출에 실패했습니다.',
-            providerStatus: response.status,
+            code: 'OPENAI_REQUEST_FAILED',
+            message: 'OpenAI request failed',
+            details: `status=${response.status}`,
           },
         },
       };
@@ -210,24 +269,49 @@ async function callOpenAi({
       };
     }
 
-    const parsed = JSON.parse(content);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch (error: any) {
+      console.error(`[API_PARSE_FAIL] error=${error?.message ?? error}`);
+      return {
+        statusCode: 502,
+        body: {
+          error: {
+            code: 'AI_JSON_PARSE_FAILED',
+            message: 'AI 응답 JSON을 해석하지 못했습니다.',
+            details: error?.message ?? String(error),
+          },
+        },
+      };
+    }
+    const foods = normalizeAnalysisFoods(parsed.foods, availableFoods);
+    console.log(`[API_PARSE_OK] foods=${foods.length}`);
     return {
       statusCode: 200,
       body: {
-        foods: normalizeAnalysisFoods(parsed.foods, availableFoods),
+        foods,
         warning: '사진 기반 분석은 참고용이며 실제 섭취량 확인이 필요합니다.',
       },
     };
   } catch (error: any) {
+    console.error(`[API_ERROR] error=${error?.message ?? error}`);
     return {
       statusCode: error?.name === 'AbortError' ? 504 : 502,
       body: {
         error: {
-          code: error?.name === 'AbortError' ? 'AI_TIMEOUT' : 'AI_PARSE_ERROR',
+          code:
+            error?.name === 'AbortError'
+              ? 'AI_TIMEOUT'
+              : 'OPENAI_REQUEST_FAILED',
           message:
             error?.name === 'AbortError'
               ? 'AI 분석 요청 시간이 초과되었습니다.'
-              : 'AI 분석 응답을 처리하지 못했습니다.',
+              : 'OpenAI request failed',
+          details:
+            error?.name === 'AbortError'
+              ? `timeoutMs=${OPENAI_TIMEOUT_MS}`
+              : error?.message ?? String(error),
         },
       },
     };
@@ -237,6 +321,12 @@ async function callOpenAi({
 }
 
 export default async function handler(req: any, res: any) {
+  const origin = String(req.headers?.origin ?? '');
+  const contentType = String(req.headers?.['content-type'] ?? '');
+  console.log(
+    `[API_ANALYZE_START] method=${req.method} origin=${origin || '-'} contentType=${contentType || '-'}`,
+  );
+
   if (req.method === 'OPTIONS') {
     setJsonHeaders(res, 204);
     res.end();
@@ -249,9 +339,13 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = parseBody(req.body);
+    console.log('[API_BODY_PARSE] ok=true');
     const imageBase64 = String(body.imageBase64 ?? '').trim();
     const mimeType = String(body.mimeType ?? '').trim() || 'image/jpeg';
     const availableFoods = normalizeFoods(body.availableFoods);
+    console.log(
+      `[API_BODY] imageBase64Length=${imageBase64.length} mime=${mimeType} foods=${availableFoods.length}`,
+    );
 
     if (!imageBase64) {
       sendError(res, 400, 'IMAGE_REQUIRED', 'imageBase64가 필요합니다.');
@@ -268,6 +362,11 @@ export default async function handler(req: any, res: any) {
 
     const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
     if (provider !== 'openai') {
+      console.log(
+        `[API_ENV] provider=${provider} model=${process.env.AI_MODEL?.trim() || 'gpt-4o-mini'} hasOpenAIKey=${Boolean(
+          process.env.OPENAI_API_KEY,
+        )}`,
+      );
       sendError(
         res,
         400,
@@ -279,7 +378,14 @@ export default async function handler(req: any, res: any) {
 
     const result = await callOpenAi({ imageBase64, mimeType, availableFoods });
     sendJson(res, result.statusCode, result.body);
-  } catch (_) {
-    sendError(res, 400, 'INVALID_JSON', '요청 body를 JSON으로 해석하지 못했습니다.');
+  } catch (error: any) {
+    console.error(`[API_BODY_PARSE] ok=false error=${error?.message ?? error}`);
+    sendError(
+      res,
+      400,
+      'INVALID_JSON',
+      '요청 body를 JSON으로 해석하지 못했습니다.',
+      error?.message ?? String(error),
+    );
   }
 }

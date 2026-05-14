@@ -8,5 +8,21 @@ class AppConfig {
   static bool get hasSupabaseConfig =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
 
-  static bool get hasAiApiBaseUrl => aiApiBaseUrl.isNotEmpty;
+  static bool get hasAiApiBaseUrl => aiApiBaseUrl.trim().isNotEmpty;
+
+  static bool get isAiApiBaseUrlPlaceholder {
+    final value = aiApiBaseUrl.trim().toLowerCase();
+    if (value.isEmpty) {
+      return false;
+    }
+    return value == 'https://example.vercel.app' ||
+        value == 'http://example.vercel.app' ||
+        value.contains('your-ai-server.example.com') ||
+        value.contains('your-vercel-app') ||
+        value.contains('example.com') ||
+        value.contains('example.vercel.app');
+  }
+
+  static bool get hasUsableAiApiBaseUrl =>
+      hasAiApiBaseUrl && !isAiApiBaseUrlPlaceholder;
 }

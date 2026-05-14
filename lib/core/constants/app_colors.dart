@@ -18,6 +18,8 @@ class AppColors {
   static const textPrimary = Color(0xFF14211B);
   static const textSecondary = Color(0xFF66756D);
   static const textMuted = textSecondary;
+  static const navInactive = Color(0xFF8EA39A);
+  static const navInactiveSoft = Color(0xFFAAB8B1);
   static const macroCarb = Color(0xFF3C7AF2);
   static const macroProtein = Color(0xFF10A987);
   static const macroFat = Color(0xFFF39A24);

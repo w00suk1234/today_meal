@@ -2,10 +2,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../data/models/detected_food_candidate.dart';
 import '../../../../data/models/food_item.dart';
+import '../../../widgets/app_card.dart';
 import '../../../widgets/app_empty_state.dart';
 import '../../../widgets/primary_action_button.dart';
 import '../../../widgets/section_header.dart';
@@ -34,6 +36,9 @@ class AiPhotoAnalysisSection extends StatelessWidget {
     required this.onMealTypeSelected,
     required this.onSaveCandidates,
     required this.onManualMatch,
+    this.debugTitle,
+    this.debugMessage,
+    this.debugDetails,
     this.resultsKey,
     super.key,
   });
@@ -56,6 +61,9 @@ class AiPhotoAnalysisSection extends StatelessWidget {
   final ValueChanged<String> onMealTypeSelected;
   final VoidCallback onSaveCandidates;
   final VoidCallback onManualMatch;
+  final String? debugTitle;
+  final String? debugMessage;
+  final String? debugDetails;
   final Key? resultsKey;
 
   @override
@@ -83,6 +91,15 @@ class AiPhotoAnalysisSection extends StatelessWidget {
         const SizedBox(height: 8),
         const Text(AppConstants.estimateNotice,
             textAlign: TextAlign.center, style: AppTextStyles.caption),
+        if (debugMessage != null) ...[
+          const SizedBox(height: 12),
+          _AiAnalysisDebugCard(
+            title: debugTitle ?? 'AI 분석 연결 확인',
+            message: debugMessage!,
+            details: debugDetails,
+            onManualMatch: onManualMatch,
+          ),
+        ],
         if (candidates.isNotEmpty)
           KeyedSubtree(
             key: resultsKey,
@@ -111,6 +128,96 @@ class AiPhotoAnalysisSection extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _AiAnalysisDebugCard extends StatelessWidget {
+  const _AiAnalysisDebugCard({
+    required this.title,
+    required this.message,
+    required this.onManualMatch,
+    this.details,
+  });
+
+  final String title;
+  final String message;
+  final String? details;
+  final VoidCallback onManualMatch;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      color: AppColors.creamBackground,
+      borderColor: AppColors.orange.withValues(alpha: 0.24),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(message, style: AppTextStyles.muted),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (details != null && details!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Text(
+                details!,
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: onManualMatch,
+            icon: const Icon(Icons.search_rounded, size: 17),
+            label: const Text('직접 검색으로 추가하기'),
+          ),
+        ],
+      ),
     );
   }
 }
