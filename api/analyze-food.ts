@@ -7,6 +7,33 @@ const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_CHAT_COMPLETIONS_URL =
   'https://api.openai.com/v1/chat/completions';
 
+const GENERIC_FOOD_NAMES = new Set([
+  '나물',
+  '국',
+  '찌개',
+  '반찬',
+  '생선',
+  '고기',
+  '샐러드',
+  '볶음',
+  '튀김',
+  '면',
+  '밥',
+  '죽',
+  '나물류',
+  '국류',
+  '찌개류',
+  '반찬류',
+  '생선류',
+  '고기류',
+  '샐러드류',
+  '볶음류',
+  '튀김류',
+  '면류',
+  '밥류',
+  '죽류',
+]);
+
 type AnalysisFood = {
   name: string;
   confidence: 'high' | 'medium' | 'low';
@@ -82,6 +109,43 @@ function shortHash(value: string) {
   return value.length > 12 ? value.slice(0, 12) : value;
 }
 
+function imageDimensionsFromBase64(imageBase64: string, mimeType: string) {
+  try {
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const normalizedMime = mimeType.toLowerCase();
+    if (normalizedMime.includes('png') && buffer.length >= 24) {
+      return {
+        width: buffer.readUInt32BE(16),
+        height: buffer.readUInt32BE(20),
+      };
+    }
+    if (
+      (normalizedMime.includes('jpeg') || normalizedMime.includes('jpg')) &&
+      buffer.length >= 4
+    ) {
+      let offset = 2;
+      while (offset + 9 < buffer.length) {
+        if (buffer[offset] !== 0xff) {
+          offset += 1;
+          continue;
+        }
+        const marker = buffer[offset + 1];
+        const size = buffer.readUInt16BE(offset + 2);
+        if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+          return {
+            height: buffer.readUInt16BE(offset + 5),
+            width: buffer.readUInt16BE(offset + 7),
+          };
+        }
+        offset += 2 + size;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function normalizeImageDetail(value: unknown): ImageDetail {
   if (value === 'auto' || value === 'high') {
     return value;
@@ -104,6 +168,11 @@ function getCachedAnalysis(cacheKey: string) {
   }
   if (entry.expiresAt <= Date.now()) {
     analysisCache.delete(cacheKey);
+    return null;
+  }
+  if (entry.body.foods.length === 0) {
+    analysisCache.delete(cacheKey);
+    console.log('[API_CACHE_SKIP] reason=empty_foods');
     return null;
   }
   return entry.body;
@@ -183,23 +252,38 @@ function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
+function normalizeFoodName(value: string) {
+  return value.trim().replace(/\s+/g, '').toLowerCase();
+}
+
+function isGenericFoodName(value: string) {
+  const normalized = normalizeFoodName(value);
+  return GENERIC_FOOD_NAMES.has(normalized) || normalized.length <= 1;
+}
+
 function normalizeAnalysisFoods(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
   return value
     .map((item): AnalysisFood => {
+      const name = String(item?.name ?? '').trim();
       const estimatedGram = Number(item?.estimatedGram);
       const normalizedGram =
         Number.isFinite(estimatedGram) && estimatedGram >= 20 && estimatedGram <= 2000
           ? Math.round(estimatedGram)
           : 100;
+      const generic = isGenericFoodName(name);
+      const confidence = normalizeConfidence(item?.confidence);
+      const description =
+        String(item?.description ?? '').trim().slice(0, 90) ||
+        (generic
+          ? '정확한 종류 확인이 필요합니다.'
+          : '사진 기반 음식 후보입니다.');
       return {
-        name: String(item?.name ?? '').trim(),
-        confidence: normalizeConfidence(item?.confidence),
-        description:
-          String(item?.description ?? '').trim().slice(0, 90) ||
-          '사진 기반 음식 후보입니다.',
+        name,
+        confidence: generic && confidence === 'high' ? 'medium' : confidence,
+        description,
         estimatedPortionText:
           String(item?.estimatedPortionText ?? '').trim().slice(0, 30) ||
           '확인 필요',
@@ -223,12 +307,21 @@ function buildPrompt() {
     '4. Do not invent foods that are not visually supported.',
     '5. Do not overclaim confidence. Use "high" only when the food is visually clear.',
     '6. Use "medium" or "low" when the food is partially visible, ambiguous, or could be confused with similar dishes.',
-    '7. Do not generate calories, carbs, protein, or fat.',
-    '8. Do not match against any food database. Do not return IDs.',
-    '9. Only return name, confidence, description, estimatedPortionText, estimatedGram.',
-    '10. Never include matchedFoodItemId, database IDs, calories, carbs, protein, or fat.',
-    '11. If the image is not food or the food is impossible to identify, return an empty foods array.',
-    '12. Return valid JSON only.',
+    '7. Food includes meals, snacks, desserts, drinks, ice cream, coffee, smoothies, bread, cake, fruit, meat dishes, soups, and side dishes.',
+    '8. If the image clearly contains an edible item or drink, return at least one candidate.',
+    '9. Do not return an empty foods array for clear food, dessert, snack, or drink images.',
+    '10. For desserts and drinks, return concrete Korean names such as "아이스크림 콘", "아이스크림", "케이크", "빵", "스무디", "커피", or "음료" when visually supported.',
+    '11. For meat dishes, return concrete Korean names such as "스테이크", "구운 고기", or "소고기 스테이크" when visually supported.',
+    '12. If the exact subtype is unclear, return a broader but useful candidate with medium or low confidence instead of returning empty.',
+    '13. Prefer specific Korean food names when visually supported, such as "시금치나물", "콩나물무침", "미역국", or "된장찌개".',
+    '14. If only a broad name such as "나물", "국", "찌개", "반찬", "생선", "고기", "밥", or "면" is supported, return confidence "medium" or "low".',
+    '15. Do not force a specific name when the exact type is unclear. In that case, add a short Korean description such as "정확한 종류 확인이 필요합니다."',
+    '16. Do not generate calories, carbs, protein, or fat.',
+    '17. Do not match against any food database. Do not return IDs.',
+    '18. Only return name, confidence, description, estimatedPortionText, estimatedGram.',
+    '19. Never include matchedFoodItemId, database IDs, calories, carbs, protein, or fat.',
+    '20. Only return an empty foods array when there is no visible food/drink or the image is impossible to interpret.',
+    '21. Return valid JSON only.',
     '',
     'Descriptions must be short Korean sentences.',
     '',
@@ -455,6 +548,17 @@ export default async function handler(req: any, res: any) {
       sendError(res, 413, 'IMAGE_TOO_LARGE', '이미지 용량이 너무 큽니다.');
       return;
     }
+    console.log(
+      `[API_IMAGE] mime=${mimeType} imageBase64Length=${imageBase64.length} imageHash=${shortHash(
+        imageHash,
+      )}`,
+    );
+    const dimensions = imageDimensionsFromBase64(imageBase64, mimeType);
+    if (dimensions) {
+      console.log(
+        `[API_IMAGE_DIMENSION] width=${dimensions.width} height=${dimensions.height}`,
+      );
+    }
 
     if (provider !== 'openai') {
       sendError(
@@ -474,7 +578,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
     if (forceRefresh) {
-      console.log(`[API_CACHE_BYPASS] imageHash=${shortHash(imageHash)}`);
+      console.log(`[API_CACHE_BYPASS] forceRefresh=true imageHash=${shortHash(imageHash)}`);
     }
 
     const limitResult = consumeDailyLimit(clientId);
@@ -499,12 +603,16 @@ export default async function handler(req: any, res: any) {
     });
     if (result.statusCode === 200 && 'foods' in result.body) {
       const body = result.body as AnalysisBody;
-      setCachedAnalysis(cacheKey, {
-        foods: body.foods,
-        warning: body.warning,
-        model: body.model,
-        detail: body.detail,
-      });
+      if (body.foods.length > 0) {
+        setCachedAnalysis(cacheKey, {
+          foods: body.foods,
+          warning: body.warning,
+          model: body.model,
+          detail: body.detail,
+        });
+      } else {
+        console.log('[API_CACHE_SKIP] reason=empty_foods');
+      }
       sendJson(res, 200, {...body, cached: false});
       return;
     }

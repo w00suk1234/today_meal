@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/ai_candidate_review.dart';
 import '../../../../data/models/detected_food_candidate.dart';
 import '../../../../data/models/food_item.dart';
 import '../../../widgets/app_card.dart';
@@ -13,6 +14,7 @@ class AiFoodCandidateList extends StatelessWidget {
     required this.onSelectionChanged,
     required this.onPortionSelected,
     required this.onCustomGramChanged,
+    required this.onSuggestionSelected,
     this.onMatchManually,
     super.key,
   });
@@ -22,6 +24,7 @@ class AiFoodCandidateList extends StatelessWidget {
   final void Function(String id, bool selected) onSelectionChanged;
   final void Function(String id, double intakeGram) onPortionSelected;
   final void Function(String id, String value) onCustomGramChanged;
+  final ValueChanged<String> onSuggestionSelected;
   final VoidCallback? onMatchManually;
 
   @override
@@ -39,6 +42,7 @@ class AiFoodCandidateList extends StatelessWidget {
                 onPortionSelected(candidate.id, grams),
             onCustomGramChanged: (value) =>
                 onCustomGramChanged(candidate.id, value),
+            onSuggestionSelected: onSuggestionSelected,
             onMatchManually: onMatchManually,
           ),
         const SizedBox(height: 6),
@@ -58,6 +62,7 @@ class _AiFoodCandidateCard extends StatefulWidget {
     required this.onSelectionChanged,
     required this.onPortionSelected,
     required this.onCustomGramChanged,
+    required this.onSuggestionSelected,
     this.onMatchManually,
   });
 
@@ -66,6 +71,7 @@ class _AiFoodCandidateCard extends StatefulWidget {
   final ValueChanged<bool> onSelectionChanged;
   final ValueChanged<double> onPortionSelected;
   final ValueChanged<String> onCustomGramChanged;
+  final ValueChanged<String> onSuggestionSelected;
   final VoidCallback? onMatchManually;
 
   @override
@@ -103,14 +109,25 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
     final food = widget.matchedFood;
     final baseGram = food?.servingGram ?? widget.candidate.intakeGram;
     final selected = widget.candidate.selected;
+    final needsReview = AiCandidateReview.needsReview(
+      name: widget.candidate.name,
+      confidenceLabel: widget.candidate.confidenceLabel,
+      hasMatchedFood: food != null,
+    );
+    final suggestions =
+        AiCandidateReview.suggestionsFor(widget.candidate.name);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: AppCard(
-        color: selected ? const Color(0xFFFBFFFC) : AppColors.cardWhite,
-        borderColor: selected
+        color: selected && !needsReview
+            ? const Color(0xFFFBFFFC)
+            : AppColors.cardWhite,
+        borderColor: selected && !needsReview
             ? AppColors.primary.withValues(alpha: 0.24)
-            : AppColors.border,
+            : needsReview
+                ? AppColors.orange.withValues(alpha: 0.22)
+                : AppColors.border,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,6 +137,10 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
               children: [
                 _SelectionToggle(
                   selected: selected,
+                  needsReview: needsReview,
+                  lowConfidence: AiCandidateReview.isLowConfidence(
+                    widget.candidate.confidenceLabel,
+                  ),
                   onTap: () => widget.onSelectionChanged(!selected),
                 ),
                 const SizedBox(width: 10),
@@ -157,8 +178,13 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
               color: AppColors.blue,
             ),
             const SizedBox(height: 10),
-            if (food == null)
+            if (needsReview)
               _NeedsReviewPanel(
+                title: AiCandidateReview.reviewTitle(widget.candidate.name),
+                description:
+                    AiCandidateReview.reviewDescription(widget.candidate.name),
+                suggestions: suggestions,
+                onSuggestionSelected: widget.onSuggestionSelected,
                 onMatchManually: widget.onMatchManually,
               )
             else if (widget.onMatchManually != null)
@@ -232,9 +258,16 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
 }
 
 class _SelectionToggle extends StatelessWidget {
-  const _SelectionToggle({required this.selected, required this.onTap});
+  const _SelectionToggle({
+    required this.selected,
+    required this.needsReview,
+    required this.lowConfidence,
+    required this.onTap,
+  });
 
   final bool selected;
+  final bool needsReview;
+  final bool lowConfidence;
   final VoidCallback onTap;
 
   @override
@@ -250,16 +283,33 @@ class _SelectionToggle extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color:
-                selected ? AppColors.primary : AppColors.lightGreenBackground,
+            color: needsReview
+                ? AppColors.orange.withValues(alpha: selected ? 0.16 : 0.1)
+                : selected
+                    ? AppColors.primary
+                    : AppColors.lightGreenBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.border,
+              color: needsReview
+                  ? AppColors.orange.withValues(alpha: 0.4)
+                  : selected
+                      ? AppColors.primary
+                      : AppColors.border,
             ),
           ),
           child: Icon(
-            selected ? Icons.check_rounded : Icons.add_rounded,
-            color: selected ? Colors.white : AppColors.primary,
+            needsReview
+                ? (lowConfidence
+                    ? Icons.help_outline_rounded
+                    : Icons.manage_search_rounded)
+                : selected
+                    ? Icons.check_rounded
+                    : Icons.add_rounded,
+            color: needsReview
+                ? AppColors.orange
+                : selected
+                    ? Colors.white
+                    : AppColors.primary,
             size: 22,
           ),
         ),
@@ -331,8 +381,18 @@ class _InfoTile extends StatelessWidget {
 }
 
 class _NeedsReviewPanel extends StatelessWidget {
-  const _NeedsReviewPanel({this.onMatchManually});
+  const _NeedsReviewPanel({
+    required this.title,
+    required this.description,
+    required this.suggestions,
+    required this.onSuggestionSelected,
+    this.onMatchManually,
+  });
 
+  final String title;
+  final String description;
+  final List<String> suggestions;
+  final ValueChanged<String> onSuggestionSelected;
   final VoidCallback? onMatchManually;
 
   @override
@@ -364,8 +424,30 @@ class _NeedsReviewPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                const Text('정확한 기록을 위해 음식명을 확인해 주세요.',
-                    style: AppTextStyles.caption),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(description, style: AppTextStyles.caption),
+                if (suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final suggestion in suggestions)
+                        _SuggestionChip(
+                          label: suggestion,
+                          onTap: () => onSuggestionSelected(suggestion),
+                        ),
+                    ],
+                  ),
+                ],
                 if (onMatchManually != null) ...[
                   const SizedBox(height: 8),
                   SizedBox(
@@ -381,6 +463,45 @@ class _NeedsReviewPanel extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 36),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.cardWhite,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.orange.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_rounded, size: 14, color: AppColors.orange),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

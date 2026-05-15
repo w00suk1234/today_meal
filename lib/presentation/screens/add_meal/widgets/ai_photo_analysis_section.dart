@@ -36,6 +36,7 @@ class AiPhotoAnalysisSection extends StatelessWidget {
     required this.onMealTypeSelected,
     required this.onSaveCandidates,
     required this.onManualMatch,
+    required this.onSuggestionSelected,
     this.resultsKey,
     super.key,
   });
@@ -60,6 +61,7 @@ class AiPhotoAnalysisSection extends StatelessWidget {
   final ValueChanged<String> onMealTypeSelected;
   final VoidCallback onSaveCandidates;
   final VoidCallback onManualMatch;
+  final ValueChanged<String> onSuggestionSelected;
   final Key? resultsKey;
 
   @override
@@ -122,16 +124,32 @@ class AiPhotoAnalysisSection extends StatelessWidget {
               onMealTypeSelected: onMealTypeSelected,
               onSaveCandidates: onSaveCandidates,
               onManualMatch: onManualMatch,
+              onSuggestionSelected: onSuggestionSelected,
             ),
           )
         else if (analysisAttempted)
           KeyedSubtree(
             key: resultsKey,
-            child: AppEmptyState(
-              message: '음식 후보를 찾지 못했습니다. 직접 검색으로 추가해 주세요.',
-              icon: Icons.search_off_outlined,
-              actionLabel: '직접 검색으로 추가하기',
-              onAction: onManualMatch,
+            child: Column(
+              children: [
+                AppEmptyState(
+                  message:
+                      '음식 후보를 찾지 못했습니다. 사진이 잘렸거나 흐릿하면 전체 음식이 보이게 다시 선택해 주세요.',
+                  icon: Icons.search_off_outlined,
+                  actionLabel: '다시 분석하기',
+                  onAction: onForceAnalyze,
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: TextButton.icon(
+                    onPressed: onManualMatch,
+                    icon: const Icon(Icons.search_rounded, size: 18),
+                    label: const Text('직접 검색으로 추가하기'),
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -152,6 +170,7 @@ class _AiResults extends StatelessWidget {
     required this.onMealTypeSelected,
     required this.onSaveCandidates,
     required this.onManualMatch,
+    required this.onSuggestionSelected,
   });
 
   final List<DetectedFoodCandidate> candidates;
@@ -165,6 +184,7 @@ class _AiResults extends StatelessWidget {
   final ValueChanged<String> onMealTypeSelected;
   final VoidCallback onSaveCandidates;
   final VoidCallback onManualMatch;
+  final ValueChanged<String> onSuggestionSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -182,6 +202,7 @@ class _AiResults extends StatelessWidget {
           onPortionSelected: onPortionSelected,
           onCustomGramChanged: onCustomGramChanged,
           onMatchManually: onManualMatch,
+          onSuggestionSelected: onSuggestionSelected,
         ),
         const SectionHeader(title: '영양소 요약'),
         NutritionSummaryCard(nutrition: nutrition),

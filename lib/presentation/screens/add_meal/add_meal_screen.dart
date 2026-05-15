@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../app.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/ai_candidate_review.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/nutrition_calculator.dart';
 import '../../../data/models/detected_food_candidate.dart';
@@ -43,6 +44,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
 
   final _picker = ImagePicker();
   final _gramController = TextEditingController();
+  final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _manualSearchKey = GlobalKey();
   final _aiResultsKey = GlobalKey();
@@ -71,6 +73,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
   @override
   void dispose() {
     _gramController.dispose();
+    _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
@@ -149,7 +152,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
           onPickCamera: () => _pickImage(ImageSource.camera),
           onAnalyze: canAnalyze ? _detectFoodsWithAi : null,
           hasCachedAnalysisForImage: hasCachedAnalysisForImage,
-          onForceAnalyze: canAnalyze && hasCachedAnalysisForImage
+          onForceAnalyze: canAnalyze
               ? () => _detectFoodsWithAi(forceRemote: true)
               : null,
           onSelectionChanged: _updateCandidateSelection,
@@ -160,6 +163,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
           onManualMatch: () {
             _scrollToManualSearch();
           },
+          onSuggestionSelected: _applyManualSearchSuggestion,
           resultsKey: _aiResultsKey,
         ),
         MealTimeSection(
@@ -193,6 +197,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         KeyedSubtree(
           key: _manualSearchKey,
           child: ManualFoodSearchSection(
+            searchController: _searchController,
             focusNode: _searchFocusNode,
             foods: results,
             selectedFood: selected,
@@ -236,12 +241,25 @@ class _AddMealScreenState extends State<AddMealScreen> {
         return;
       }
       final previewBytes = await file.readAsBytes();
+      final previewDimensions = _decodedImageDimensions(previewBytes);
+      debugPrint(
+        '[AI_IMAGE_PREVIEW] previewBytes=${previewBytes.length} '
+        'decodedWidth=${previewDimensions?.width ?? 0} '
+        'decodedHeight=${previewDimensions?.height ?? 0}',
+      );
       final analysisPayload = await _createAnalysisImagePayload(
         previewBytes,
         fallbackMimeType: _mimeTypeForPickedImage(file),
       );
       final analysisBytes = analysisPayload.bytes;
       final imageHash = _imageHash(analysisBytes);
+      final analysisDimensions = _decodedImageDimensions(analysisBytes);
+      debugPrint(
+        '[AI_IMAGE_ANALYSIS] analysisBytes=${analysisBytes.length} '
+        'decodedWidth=${analysisDimensions?.width ?? 0} '
+        'decodedHeight=${analysisDimensions?.height ?? 0} '
+        'mime=${analysisPayload.mimeType} imageHash=${_shortHash(imageHash)}',
+      );
       setState(() {
         _pickedImage = file;
         _previewImageBytes = previewBytes;
@@ -310,14 +328,20 @@ class _AddMealScreenState extends State<AddMealScreen> {
       }
       setState(() {
         _aiCandidates = candidates;
-        _lastAiCandidates = _cloneCandidates(candidates);
-        _lastAnalyzedImageHash = imageHash;
-        _hasCachedAiResult = true;
+        if (candidates.isNotEmpty) {
+          _lastAiCandidates = _cloneCandidates(candidates);
+          _lastAnalyzedImageHash = imageHash;
+          _hasCachedAiResult = true;
+        } else {
+          _lastAiCandidates = [];
+          _lastAnalyzedImageHash = null;
+          _hasCachedAiResult = false;
+        }
         _analysisAttempted = true;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToAiResults());
       if (candidates.isEmpty) {
-        _showSnack('음식 후보를 찾지 못했습니다. 직접 검색으로 추가해 주세요.');
+        _showSnack('음식 후보를 찾지 못했습니다. 전체 음식이 보이게 다시 선택해 주세요.');
       } else if (visionFoodService.lastUserMessage != null) {
         _showSnack(visionFoodService.lastUserMessage!);
       } else {
@@ -374,14 +398,26 @@ class _AddMealScreenState extends State<AddMealScreen> {
         );
       }
       final oriented = image_lib.bakeOrientation(decoded);
-      final shouldResize = oriented.width > _analysisImageMaxWidth;
+      final shouldResize = oriented.width > _analysisImageMaxWidth ||
+          oriented.height > _analysisImageMaxWidth;
       final resized = shouldResize
-          ? image_lib.copyResize(
-              oriented,
-              width: _analysisImageMaxWidth,
-              interpolation: image_lib.Interpolation.average,
-            )
+          ? oriented.width >= oriented.height
+              ? image_lib.copyResize(
+                  oriented,
+                  width: _analysisImageMaxWidth,
+                  interpolation: image_lib.Interpolation.average,
+                )
+              : image_lib.copyResize(
+                  oriented,
+                  height: _analysisImageMaxWidth,
+                  interpolation: image_lib.Interpolation.average,
+                )
           : oriented;
+      debugPrint(
+        '[AI_IMAGE_RESIZE] original=${decoded.width}x${decoded.height} '
+        'resized=${resized.width}x${resized.height} '
+        'crop=false letterbox=false',
+      );
       return _AnalysisImagePayload(
         bytes: Uint8List.fromList(
           image_lib.encodeJpg(resized, quality: _analysisImageQuality),
@@ -394,6 +430,18 @@ class _AddMealScreenState extends State<AddMealScreen> {
         bytes: previewBytes,
         mimeType: fallbackMimeType,
       );
+    }
+  }
+
+  _ImageDimensions? _decodedImageDimensions(Uint8List bytes) {
+    try {
+      final image = image_lib.decodeImage(bytes);
+      if (image == null) {
+        return null;
+      }
+      return _ImageDimensions(image.width, image.height);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -479,6 +527,14 @@ class _AddMealScreenState extends State<AddMealScreen> {
     for (final candidate in selectedCandidates) {
       if (candidate.intakeGram <= 0) {
         _showSnack('${candidate.name}의 섭취량은 0g보다 커야 합니다.');
+        return;
+      }
+      if (AiCandidateReview.needsReview(
+        name: candidate.name,
+        confidenceLabel: candidate.confidenceLabel,
+        hasMatchedFood: matchedFoods[candidate.id] != null,
+      )) {
+        _showSnack('정확한 기록을 위해 음식명을 직접 검색으로 확인해 주세요.');
         return;
       }
       if (matchedFoods[candidate.id] == null) {
@@ -601,6 +657,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _selectedImageHash = null;
       _aiCandidates = [];
       _analysisAttempted = false;
+      _searchController.clear();
       _gramController.clear();
     });
   }
@@ -625,6 +682,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
       if (food == null) {
         continue;
       }
+      if (AiCandidateReview.needsReview(
+        name: candidate.name,
+        confidenceLabel: candidate.confidenceLabel,
+        hasMatchedFood: true,
+      )) {
+        continue;
+      }
       kcal += NutritionCalculator.calculateKcal(food, candidate.intakeGram);
       carbs += NutritionCalculator.calculateCarbs(food, candidate.intakeGram);
       protein +=
@@ -641,6 +705,19 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _portionMultiplier = 1;
       _gramController.text = food.servingGram.round().toString();
     });
+  }
+
+  void _applyManualSearchSuggestion(String query) {
+    setState(() {
+      _query = query;
+      _selectedFood = null;
+      _customGram = false;
+      _portionMultiplier = 1;
+      _searchController.text = query;
+      _searchController.selection =
+          TextSelection.collapsed(offset: _searchController.text.length);
+    });
+    _scrollToManualSearch();
   }
 
   String? _localImageReference() {
@@ -726,4 +803,11 @@ class _AnalysisImagePayload {
 
   final Uint8List bytes;
   final String mimeType;
+}
+
+class _ImageDimensions {
+  const _ImageDimensions(this.width, this.height);
+
+  final int width;
+  final int height;
 }

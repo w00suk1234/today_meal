@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
+import '../../core/utils/ai_candidate_review.dart';
 import '../local/food_database.dart';
 import '../models/food_item.dart';
 
@@ -46,6 +47,10 @@ class FoodRepository {
 
   FoodItem? matchAiCandidate(
       List<FoodItem> foods, String candidateName, String? preferredFoodId) {
+    if (AiCandidateReview.isTooBroadOrShort(candidateName)) {
+      return null;
+    }
+
     final preferred = findById(foods, preferredFoodId);
     if (preferred != null) {
       return preferred;

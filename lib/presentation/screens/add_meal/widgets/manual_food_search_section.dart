@@ -12,6 +12,7 @@ import 'selected_food_summary_card.dart';
 
 class ManualFoodSearchSection extends StatelessWidget {
   const ManualFoodSearchSection({
+    required this.searchController,
     required this.focusNode,
     required this.foods,
     required this.selectedFood,
@@ -32,6 +33,7 @@ class ManualFoodSearchSection extends StatelessWidget {
     super.key,
   });
 
+  final TextEditingController searchController;
   final FocusNode focusNode;
   final List<FoodItem> foods;
   final FoodItem? selectedFood;
@@ -57,7 +59,11 @@ class ManualFoodSearchSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(title: '직접 음식 검색'),
-        FoodSearchBox(focusNode: focusNode, onChanged: onQueryChanged),
+        FoodSearchBox(
+          controller: searchController,
+          focusNode: focusNode,
+          onChanged: onQueryChanged,
+        ),
         const SizedBox(height: 10),
         FoodResultList(
           foods: foods,

@@ -25,7 +25,17 @@ class FoodImageView extends StatelessWidget {
             color: AppColors.lightGreenBackground,
             child: const Icon(Icons.restaurant, color: AppColors.primary),
           )
-        : Image.memory(bytes, fit: BoxFit.cover);
+        : Container(
+            color: AppColors.creamBackground,
+            alignment: Alignment.center,
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+              filterQuality: FilterQuality.high,
+              gaplessPlayback: true,
+            ),
+          );
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: SizedBox(width: size, height: size, child: image),

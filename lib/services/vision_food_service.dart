@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/app_config.dart';
+import '../core/utils/ai_candidate_review.dart';
 import '../data/models/detected_food_candidate.dart';
 import '../data/models/food_item.dart';
 
@@ -115,6 +116,7 @@ class RemoteVisionFoodService extends VisionFoodService {
   static const _clientIdKey = 'today_meal_ai_client_id_v1';
   static const _cacheIndexPrefix = 'today_meal_ai_analysis_cache_index_v1';
   static const _cacheEntryPrefix = 'today_meal_ai_analysis_cache_v1';
+  static const _cacheVersion = 2;
   static const _localCacheTtl = Duration(hours: 24);
 
   final String baseUrl;
@@ -136,6 +138,9 @@ class RemoteVisionFoodService extends VisionFoodService {
     final normalizedBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     if (normalizedBaseUrl.isEmpty) {
       throw const VisionFoodException('AI 분석 서버 URL이 설정되지 않았습니다.');
+    }
+    if (forceRefresh) {
+      debugPrint('[AI_FORCE_REFRESH] cacheBypassed=true');
     }
 
     if (!forceRefresh && imageHash != null && imageHash.isNotEmpty) {
@@ -220,7 +225,7 @@ class RemoteVisionFoodService extends VisionFoodService {
       if (decoded['cached'] == true) {
         _lastUserMessage = '같은 사진의 이전 분석 결과를 다시 표시합니다.';
       }
-      if (imageHash != null && imageHash.isNotEmpty) {
+      if (imageHash != null && imageHash.isNotEmpty && candidates.isNotEmpty) {
         await _writeCachedCandidates(
           normalizedBaseUrl,
           imageHash,
@@ -228,6 +233,8 @@ class RemoteVisionFoodService extends VisionFoodService {
           detail: '${decoded['detail'] ?? 'server'}',
           candidates: candidates,
         );
+      } else if (imageHash != null && imageHash.isNotEmpty) {
+        debugPrint('[AI_LOCAL_CACHE_SKIP] reason=empty_foods');
       }
       return candidates;
     } on TimeoutException {
@@ -253,13 +260,20 @@ class RemoteVisionFoodService extends VisionFoodService {
       return null;
     }
     final estimatedGram = item['estimatedGram'];
+    final confidenceLabel = _confidenceLabel(item['confidence']);
+    final needsReview = AiCandidateReview.isGenericName(name) ||
+        AiCandidateReview.isLowConfidence(confidenceLabel) ||
+        AiCandidateReview.isTooBroadOrShort(name);
     return DetectedFoodCandidate(
       id: 'remote_${DateTime.now().microsecondsSinceEpoch}_$index',
       name: name,
-      confidenceLabel: _confidenceLabel(item['confidence']),
+      confidenceLabel: AiCandidateReview.isGenericName(name) &&
+              confidenceLabel == '높음'
+          ? '보통'
+          : confidenceLabel,
       description: '${item['description'] ?? '사진 기반 음식 후보입니다.'}',
       estimatedPortionText: '${item['estimatedPortionText'] ?? '확인 필요'}',
-      selected: true,
+      selected: !needsReview,
       intakeGram: _normalizedGram(estimatedGram),
     );
   }
@@ -296,19 +310,62 @@ class RemoteVisionFoodService extends VisionFoodService {
       }
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
-        await preferences.remove(entryKey);
-        await preferences.remove(indexKey);
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'empty_foods_or_old_version',
+        );
+        return null;
+      }
+      final version = decoded['version'];
+      if (version != _cacheVersion) {
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'empty_foods_or_old_version',
+        );
+        return null;
+      }
+      if ('${decoded['imageHash'] ?? ''}' != imageHash) {
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'image_hash_mismatch',
+        );
+        return null;
+      }
+      if ('${decoded['cacheModelKey'] ?? ''}' != _cacheModelKey ||
+          '${decoded['cacheDetailKey'] ?? ''}' != _cacheDetailKey) {
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'model_or_detail_changed',
+        );
         return null;
       }
       final createdAt = DateTime.tryParse('${decoded['createdAt'] ?? ''}');
       if (createdAt == null ||
           DateTime.now().difference(createdAt) > _localCacheTtl) {
-        await preferences.remove(entryKey);
-        await preferences.remove(indexKey);
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'expired_or_missing_created_at',
+        );
         return null;
       }
       final foods = decoded['foods'];
-      if (foods is! List) {
+      if (foods is! List || foods.isEmpty) {
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'empty_foods_or_old_version',
+        );
         return null;
       }
       final candidates = <DetectedFoodCandidate>[];
@@ -319,6 +376,15 @@ class RemoteVisionFoodService extends VisionFoodService {
         if (candidate != null) {
           candidates.add(candidate);
         }
+      }
+      if (candidates.isEmpty) {
+        await _dropCachedEntry(
+          preferences,
+          entryKey,
+          indexKey,
+          reason: 'empty_foods_or_old_version',
+        );
+        return null;
       }
       return candidates;
     } catch (error) {
@@ -346,7 +412,10 @@ class RemoteVisionFoodService extends VisionFoodService {
       await preferences.setString(
         entryKey,
         jsonEncode({
+          'version': _cacheVersion,
           'imageHash': imageHash,
+          'cacheModelKey': _cacheModelKey,
+          'cacheDetailKey': _cacheDetailKey,
           'model': model,
           'detail': detail,
           'createdAt': DateTime.now().toIso8601String(),
@@ -357,6 +426,17 @@ class RemoteVisionFoodService extends VisionFoodService {
     } catch (error) {
       debugPrint('[AI_LOCAL_CACHE_WRITE_ERROR] error=$error');
     }
+  }
+
+  Future<void> _dropCachedEntry(
+    SharedPreferences preferences,
+    String entryKey,
+    String indexKey, {
+    required String reason,
+  }) async {
+    await preferences.remove(entryKey);
+    await preferences.remove(indexKey);
+    debugPrint('[AI_LOCAL_CACHE_DROP] reason=$reason');
   }
 
   Map<String, Object?> _candidateToJson(DetectedFoodCandidate candidate) {
@@ -384,6 +464,16 @@ class RemoteVisionFoodService extends VisionFoodService {
 
   String _hashText(String value) =>
       sha256.convert(utf8.encode(value)).toString();
+
+  String get _cacheModelKey {
+    final value = AppConfig.aiModelCacheKey.trim();
+    return value.isEmpty ? 'server-default-model' : value;
+  }
+
+  String get _cacheDetailKey {
+    final value = AppConfig.aiImageDetailCacheKey.trim();
+    return value.isEmpty ? 'server-default-detail' : value;
+  }
 
   String _shortHash(String value) =>
       value.length > 12 ? value.substring(0, 12) : value;

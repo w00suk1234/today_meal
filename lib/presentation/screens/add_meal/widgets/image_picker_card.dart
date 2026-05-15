@@ -68,11 +68,16 @@ class ImagePickerCard extends StatelessWidget {
                       ),
                     )
                   else
-                    Image.memory(
-                      previewImageBytes!,
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
-                      gaplessPlayback: true,
+                    Container(
+                      color: AppColors.creamBackground,
+                      alignment: Alignment.center,
+                      child: Image.memory(
+                        previewImageBytes!,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.high,
+                        gaplessPlayback: true,
+                      ),
                     ),
                   Positioned(
                     left: 14,

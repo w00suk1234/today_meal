@@ -21,5 +21,14 @@
   {"id":"yogurt","name":"요거트","category":"유제품","servingGram":150,"kcalPer100g":72,"carbPer100g":9.0,"proteinPer100g":4.0,"fatPer100g":2.4},
   {"id":"grilled_mackerel","name":"고등어구이","category":"생선","servingGram":180,"kcalPer100g":205,"carbPer100g":0.0,"proteinPer100g":20.0,"fatPer100g":13.5},
   {"id":"cucumber_salad","name":"오이무침","category":"반찬","servingGram":60,"kcalPer100g":38,"carbPer100g":7.2,"proteinPer100g":1.0,"fatPer100g":0.7},
-  {"id":"kimchi","name":"김치","category":"반찬","servingGram":40,"kcalPer100g":23,"carbPer100g":4.0,"proteinPer100g":1.6,"fatPer100g":0.4}
+  {"id":"kimchi","name":"김치","category":"반찬","servingGram":40,"kcalPer100g":23,"carbPer100g":4.0,"proteinPer100g":1.6,"fatPer100g":0.4},
+  {"id":"ice_cream","name":"아이스크림","category":"디저트","servingGram":100,"kcalPer100g":207,"carbPer100g":24.0,"proteinPer100g":3.5,"fatPer100g":11.0},
+  {"id":"ice_cream_cone","name":"아이스크림 콘","category":"디저트","servingGram":120,"kcalPer100g":220,"carbPer100g":30.0,"proteinPer100g":4.0,"fatPer100g":10.0},
+  {"id":"steak","name":"스테이크","category":"고기","servingGram":200,"kcalPer100g":250,"carbPer100g":0.5,"proteinPer100g":26.0,"fatPer100g":16.0},
+  {"id":"beef_steak","name":"소고기 스테이크","category":"고기","servingGram":200,"kcalPer100g":260,"carbPer100g":0.4,"proteinPer100g":27.0,"fatPer100g":17.0},
+  {"id":"coffee","name":"커피","category":"음료","servingGram":300,"kcalPer100g":2,"carbPer100g":0.1,"proteinPer100g":0.1,"fatPer100g":0.0},
+  {"id":"drink","name":"음료","category":"음료","servingGram":250,"kcalPer100g":45,"carbPer100g":11.0,"proteinPer100g":0.0,"fatPer100g":0.0},
+  {"id":"smoothie","name":"스무디","category":"음료","servingGram":300,"kcalPer100g":70,"carbPer100g":14.0,"proteinPer100g":2.0,"fatPer100g":1.2},
+  {"id":"cake","name":"케이크","category":"디저트","servingGram":120,"kcalPer100g":330,"carbPer100g":43.0,"proteinPer100g":5.0,"fatPer100g":15.0},
+  {"id":"bread","name":"빵","category":"빵","servingGram":80,"kcalPer100g":265,"carbPer100g":49.0,"proteinPer100g":9.0,"fatPer100g":3.2}
 ]
