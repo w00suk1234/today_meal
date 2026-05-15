@@ -7,8 +7,11 @@ import '../../../../data/models/daily_summary.dart';
 import '../../../widgets/app_card.dart';
 
 class DailySummaryCard extends StatelessWidget {
-  const DailySummaryCard(
-      {required this.summary, required this.targetKcal, super.key});
+  const DailySummaryCard({
+    required this.summary,
+    required this.targetKcal,
+    super.key,
+  });
 
   final DailySummary summary;
   final double targetKcal;
@@ -16,12 +19,14 @@ class DailySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = NutritionCalculator.calculateTargetPercent(
-        summary.totalKcal, targetKcal);
+      summary.totalKcal,
+      targetKcal,
+    );
     final remaining = targetKcal - summary.totalKcal;
     final progress = (percent / 100).clamp(0.0, 1.0);
 
     return AppCard(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
       color: AppColors.cardWhite,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -33,21 +38,29 @@ class DailySummaryCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('오늘 총 섭취',
-                        style: AppTextStyles.caption
-                            .copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 7),
+                    Text(
+                      '오늘 총 섭취',
+                      style: AppTextStyles.caption.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(summary.totalKcal.round().toString(),
-                            style: AppTextStyles.metric),
+                        Text(
+                          summary.totalKcal.round().toString(),
+                          style: AppTextStyles.metric,
+                        ),
                         const SizedBox(width: 4),
                         Padding(
                           padding: const EdgeInsets.only(bottom: 3),
-                          child: Text('kcal',
-                              style: AppTextStyles.muted
-                                  .copyWith(fontWeight: FontWeight.w700)),
+                          child: Text(
+                            'kcal',
+                            style: AppTextStyles.muted.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -66,7 +79,7 @@ class DailySummaryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 20),
               SizedBox(
                 width: 96,
                 height: 96,
@@ -85,9 +98,13 @@ class DailySummaryCard extends StatelessWidget {
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text('${percent.round()}%',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w900, fontSize: 18)),
+                        Text(
+                          '${percent.round()}%',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         const Text('달성', style: AppTextStyles.caption),
                       ],
@@ -97,24 +114,28 @@ class DailySummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              minHeight: 9,
+              minHeight: 10,
               value: progress,
               backgroundColor: AppColors.border,
               valueColor: const AlwaysStoppedAnimation(AppColors.primary),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Metric(label: '목표', value: NutritionCalculator.kcal(targetKcal)),
+              const SizedBox(width: 10),
               _Metric(label: '오늘 기록', value: '${summary.records.length}개'),
+              const SizedBox(width: 10),
               _Metric(
-                  label: remaining >= 0 ? '남은 칼로리' : '초과',
-                  value: NutritionCalculator.kcal(remaining.abs())),
+                label: remaining >= 0 ? '남은 칼로리' : '초과',
+                value: NutritionCalculator.kcal(remaining.abs()),
+              ),
             ],
           ),
         ],
@@ -139,9 +160,10 @@ class _Metric extends StatelessWidget {
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(value,
-                style:
-                    const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+            ),
           ),
         ],
       ),
