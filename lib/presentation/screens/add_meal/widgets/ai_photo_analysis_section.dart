@@ -16,7 +16,7 @@ import 'nutrition_summary_card.dart';
 
 class AiPhotoAnalysisSection extends StatelessWidget {
   const AiPhotoAnalysisSection({
-    required this.imageBytes,
+    required this.previewImageBytes,
     required this.hasPickedImage,
     required this.analyzing,
     required this.saving,
@@ -40,7 +40,7 @@ class AiPhotoAnalysisSection extends StatelessWidget {
     super.key,
   });
 
-  final Uint8List? imageBytes;
+  final Uint8List? previewImageBytes;
   final bool hasPickedImage;
   final bool analyzing;
   final bool saving;
@@ -70,7 +70,7 @@ class AiPhotoAnalysisSection extends StatelessWidget {
         const SectionHeader(
             title: 'AI 사진 분석', subtitle: '음식 후보를 먼저 찾고, 최종 기록은 직접 확인해요'),
         ImagePickerCard(
-          imageBytes: imageBytes,
+          previewImageBytes: previewImageBytes,
           onPickGallery: onPickGallery,
           onPickCamera: onPickCamera,
         ),

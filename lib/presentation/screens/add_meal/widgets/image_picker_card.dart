@@ -8,13 +8,13 @@ import '../../../widgets/app_card.dart';
 
 class ImagePickerCard extends StatelessWidget {
   const ImagePickerCard({
-    required this.imageBytes,
+    required this.previewImageBytes,
     required this.onPickGallery,
     required this.onPickCamera,
     super.key,
   });
 
-  final Uint8List? imageBytes;
+  final Uint8List? previewImageBytes;
   final VoidCallback onPickGallery;
   final VoidCallback onPickCamera;
 
@@ -33,7 +33,7 @@ class ImagePickerCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (imageBytes == null)
+                  if (previewImageBytes == null)
                     Container(
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
@@ -68,7 +68,12 @@ class ImagePickerCard extends StatelessWidget {
                       ),
                     )
                   else
-                    Image.memory(imageBytes!, fit: BoxFit.cover),
+                    Image.memory(
+                      previewImageBytes!,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      gaplessPlayback: true,
+                    ),
                   Positioned(
                     left: 14,
                     right: 14,
@@ -87,7 +92,7 @@ class ImagePickerCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              imageBytes == null ? '눌러서 사진 선택하기' : '눌러서 사진 바꾸기',
+                              previewImageBytes == null ? '눌러서 사진 선택하기' : '눌러서 사진 바꾸기',
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as image_lib;
 import 'package:image_picker/image_picker.dart';
 
 import '../../../app.dart';
@@ -35,8 +36,10 @@ class AddMealScreen extends StatefulWidget {
 }
 
 class _AddMealScreenState extends State<AddMealScreen> {
-  static const _analysisImageMaxWidth = 640.0;
-  static const _analysisImageQuality = 64;
+  static const _previewImageMaxWidth = 1600.0;
+  static const _previewImageQuality = 90;
+  static const _analysisImageMaxWidth = 1024;
+  static const _analysisImageQuality = 80;
 
   final _picker = ImagePicker();
   final _gramController = TextEditingController();
@@ -52,8 +55,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
   DateTime _startedAt = DateTime.now();
   DateTime _finishedAt = DateTime.now().add(const Duration(minutes: 15));
   XFile? _pickedImage;
-  Uint8List? _imageBytes;
-  String? _imageDataUrl;
+  Uint8List? _previewImageBytes;
+  Uint8List? _analysisImageBytes;
+  String? _analysisImageDataUrl;
+  String _analysisImageMimeType = 'image/jpeg';
   String? _selectedImageHash;
   String? _lastAnalyzedImageHash;
   bool _hasCachedAiResult = false;
@@ -87,7 +92,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         ),
     };
     final aiNutrition = _aiNutrition(matchedFoods);
-    final canAnalyze = _pickedImage != null && !_analyzing;
+    final canAnalyze = _analysisImageBytes != null && !_analyzing;
     final hasCachedAnalysisForImage = _hasCachedAnalysisForSelectedImage;
 
     return AppScaffold(
@@ -131,8 +136,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
           ],
         ),
         AiPhotoAnalysisSection(
-          imageBytes: _imageBytes,
-          hasPickedImage: _pickedImage != null,
+          previewImageBytes: _previewImageBytes,
+          hasPickedImage: _previewImageBytes != null,
           analyzing: _analyzing,
           saving: _saving,
           analysisAttempted: _analysisAttempted,
@@ -219,22 +224,31 @@ class _AddMealScreenState extends State<AddMealScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      // Keep the in-app preview and AI request payload compressed. Production
-      // storage should replace this MVP data URL with a thumbnail path or URL.
+      // Keep the visible preview sharper than the payload sent to the AI API.
+      // Production storage should replace this MVP data URL with a thumbnail
+      // path or remote Storage URL.
       final file = await _picker.pickImage(
           source: source,
-          imageQuality: _analysisImageQuality,
-          maxWidth: _analysisImageMaxWidth);
+          imageQuality: _previewImageQuality,
+          maxWidth: _previewImageMaxWidth);
       if (file == null) {
         _showSnack('이미지 선택을 취소했습니다.');
         return;
       }
-      final bytes = await file.readAsBytes();
-      final imageHash = _imageHash(bytes);
+      final previewBytes = await file.readAsBytes();
+      final analysisPayload = await _createAnalysisImagePayload(
+        previewBytes,
+        fallbackMimeType: _mimeTypeForPickedImage(file),
+      );
+      final analysisBytes = analysisPayload.bytes;
+      final imageHash = _imageHash(analysisBytes);
       setState(() {
         _pickedImage = file;
-        _imageBytes = bytes;
-        _imageDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+        _previewImageBytes = previewBytes;
+        _analysisImageBytes = analysisBytes;
+        _analysisImageMimeType = analysisPayload.mimeType;
+        _analysisImageDataUrl =
+            'data:${analysisPayload.mimeType};base64,${base64Encode(analysisBytes)}';
         _selectedImageHash = imageHash;
         _aiCandidates = [];
         _analysisAttempted = false;
@@ -247,18 +261,17 @@ class _AddMealScreenState extends State<AddMealScreen> {
   }
 
   Future<void> _detectFoodsWithAi({bool forceRemote = false}) async {
-    final image = _pickedImage;
     final controller = AppScope.of(context);
-    final imageBytes = _imageBytes;
+    final imageBytes = _analysisImageBytes;
     final imageHash = _selectedImageHash;
-    if (image == null) {
+    if (_pickedImage == null || imageBytes == null) {
       _showSnack('먼저 음식 사진을 업로드하거나 촬영해 주세요.');
       return;
     }
 
     debugPrint(
       '[AI_ANALYZE_START] imageHash=${_shortHash(imageHash)} '
-      'bytes=${imageBytes?.length ?? 0} foods=${controller.foods.length}',
+      'bytes=${imageBytes.length} foods=${controller.foods.length}',
     );
 
     if (!forceRemote &&
@@ -281,8 +294,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
     });
     try {
       final visionFoodService = controller.visionFoodService;
+      final analysisImage = XFile.fromData(
+        imageBytes,
+        mimeType: _analysisImageMimeType,
+        name: 'today_meal_analysis.jpg',
+      );
       final candidates = await visionFoodService.detectFoodsFromImage(
-        image,
+        analysisImage,
         imageHash: imageHash,
         forceRefresh: forceRemote,
         availableFoods: controller.foods,
@@ -342,6 +360,58 @@ class _AddMealScreenState extends State<AddMealScreen> {
   }
 
   String _imageHash(Uint8List bytes) => sha256.convert(bytes).toString();
+
+  Future<_AnalysisImagePayload> _createAnalysisImagePayload(
+    Uint8List previewBytes, {
+    required String fallbackMimeType,
+  }) async {
+    try {
+      final decoded = image_lib.decodeImage(previewBytes);
+      if (decoded == null) {
+        return _AnalysisImagePayload(
+          bytes: previewBytes,
+          mimeType: fallbackMimeType,
+        );
+      }
+      final oriented = image_lib.bakeOrientation(decoded);
+      final shouldResize = oriented.width > _analysisImageMaxWidth;
+      final resized = shouldResize
+          ? image_lib.copyResize(
+              oriented,
+              width: _analysisImageMaxWidth,
+              interpolation: image_lib.Interpolation.average,
+            )
+          : oriented;
+      return _AnalysisImagePayload(
+        bytes: Uint8List.fromList(
+          image_lib.encodeJpg(resized, quality: _analysisImageQuality),
+        ),
+        mimeType: 'image/jpeg',
+      );
+    } catch (error) {
+      debugPrint('AddMealScreen: analysis image compression failed: $error');
+      return _AnalysisImagePayload(
+        bytes: previewBytes,
+        mimeType: fallbackMimeType,
+      );
+    }
+  }
+
+  String _mimeTypeForPickedImage(XFile image) {
+    final explicit = image.mimeType;
+    if (explicit != null && explicit.startsWith('image/')) {
+      return explicit;
+    }
+    final name = image.name.toLowerCase();
+    final path = image.path.toLowerCase();
+    if (name.endsWith('.png') || path.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (name.endsWith('.webp') || path.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    return 'image/jpeg';
+  }
 
   String _shortHash(String? hash) {
     if (hash == null || hash.length <= 12) {
@@ -524,8 +594,10 @@ class _AddMealScreenState extends State<AddMealScreen> {
       _startedAt = _eatenAt;
       _finishedAt = _startedAt.add(const Duration(minutes: 15));
       _pickedImage = null;
-      _imageBytes = null;
-      _imageDataUrl = null;
+      _previewImageBytes = null;
+      _analysisImageBytes = null;
+      _analysisImageDataUrl = null;
+      _analysisImageMimeType = 'image/jpeg';
       _selectedImageHash = null;
       _aiCandidates = [];
       _analysisAttempted = false;
@@ -572,13 +644,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
   }
 
   String? _localImageReference() {
-    final dataUrl = _imageDataUrl;
+    final dataUrl = _analysisImageDataUrl;
     if (dataUrl == null || dataUrl.isEmpty) {
       return null;
     }
     // TODO: Before production, store a small thumbnail path or remote Storage
-    // URL here instead of a data URL. Supabase sync explicitly refuses
-    // data:image payloads so large base64 strings are not written to image_url.
+    // URL here instead of a data URL. The preview bytes are never persisted,
+    // and Supabase sync explicitly refuses data:image payloads for image_url.
     return dataUrl;
   }
 
@@ -644,4 +716,14 @@ class _AddMealScreenState extends State<AddMealScreen> {
     }
     onPicked(DateTime(date.year, date.month, date.day, time.hour, time.minute));
   }
+}
+
+class _AnalysisImagePayload {
+  const _AnalysisImagePayload({
+    required this.bytes,
+    required this.mimeType,
+  });
+
+  final Uint8List bytes;
+  final String mimeType;
 }
