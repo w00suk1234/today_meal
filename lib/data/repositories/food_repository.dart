@@ -59,8 +59,13 @@ class FoodRepository {
     }
 
     final aliases = <String, List<String>>{
+      '공기밥': ['공깃밥'],
+      '공깃밥': ['공깃밥'],
+      '쌀밥': ['공깃밥'],
+      '흰 쌀밥': ['공깃밥'],
       '잡곡밥': ['현미밥', '공깃밥'],
       '된장국': ['된장찌개'],
+      '된장찌개': ['된장찌개'],
       '고등어': ['고등어구이'],
       '오이': ['오이무침'],
       '김치': ['김치'],
@@ -81,6 +86,16 @@ class FoodRepository {
     }
 
     final searchResults = search(foods, candidateName);
-    return searchResults.isEmpty ? null : searchResults.first;
+    if (searchResults.length == 1) {
+      return searchResults.first;
+    }
+
+    final strongMatches = foods.where((food) {
+      final foodName = food.name.toLowerCase();
+      return normalized == foodName ||
+          (normalized.length >= 3 && foodName.contains(normalized)) ||
+          (foodName.length >= 3 && normalized.contains(foodName));
+    }).toList();
+    return strongMatches.length == 1 ? strongMatches.first : null;
   }
 }

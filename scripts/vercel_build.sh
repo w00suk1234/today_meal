@@ -21,4 +21,7 @@ fi
 flutter --version
 flutter config --enable-web
 flutter pub get
-flutter build web --release --dart-define=AI_API_BASE_URL="$AI_BASE_URL"
+flutter build web --release \
+  --dart-define=AI_API_BASE_URL="$AI_BASE_URL" \
+  --dart-define=AI_MODEL="${AI_MODEL:-}" \
+  --dart-define=AI_IMAGE_DETAIL="${AI_IMAGE_DETAIL:-low}"

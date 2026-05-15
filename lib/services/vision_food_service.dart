@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/app_config.dart';
 import '../data/models/detected_food_candidate.dart';
@@ -103,15 +106,24 @@ class MockVisionFoodService extends VisionFoodService {
 }
 
 class RemoteVisionFoodService extends VisionFoodService {
-  const RemoteVisionFoodService({
+  RemoteVisionFoodService({
     this.baseUrl = AppConfig.aiApiBaseUrl,
     this.client,
     this.timeout = const Duration(seconds: 25),
   });
 
+  static const _clientIdKey = 'today_meal_ai_client_id_v1';
+  static const _cacheIndexPrefix = 'today_meal_ai_analysis_cache_index_v1';
+  static const _cacheEntryPrefix = 'today_meal_ai_analysis_cache_v1';
+  static const _localCacheTtl = Duration(hours: 24);
+
   final String baseUrl;
   final http.Client? client;
   final Duration timeout;
+  String? _lastUserMessage;
+
+  @override
+  String? get lastUserMessage => _lastUserMessage;
 
   @override
   Future<List<DetectedFoodCandidate>> detectFoodsFromImage(
@@ -120,9 +132,20 @@ class RemoteVisionFoodService extends VisionFoodService {
     bool forceRefresh = false,
     List<FoodItem> availableFoods = const [],
   }) async {
+    _lastUserMessage = null;
     final normalizedBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/+$'), '');
     if (normalizedBaseUrl.isEmpty) {
       throw const VisionFoodException('AI 분석 서버 URL이 설정되지 않았습니다.');
+    }
+
+    if (!forceRefresh && imageHash != null && imageHash.isNotEmpty) {
+      final cachedCandidates =
+          await _readCachedCandidates(normalizedBaseUrl, imageHash);
+      if (cachedCandidates != null) {
+        _lastUserMessage = '같은 사진의 이전 분석 결과를 다시 표시합니다.';
+        debugPrint('[AI_LOCAL_CACHE_HIT] imageHash=${_shortHash(imageHash)}');
+        return cachedCandidates;
+      }
     }
 
     final bytes = await image.readAsBytes();
@@ -131,29 +154,23 @@ class RemoteVisionFoodService extends VisionFoodService {
     final uri = Uri.parse('$normalizedBaseUrl/api/analyze-food');
     final closeClient = client == null;
     final requestClient = client ?? http.Client();
+    final clientId = await _clientId();
     debugPrint('[AI_REMOTE_REQUEST] url=$uri model is server-side');
 
     try {
       final response = await requestClient
           .post(
             uri,
-            headers: const {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Client-Id': clientId,
+            },
             body: jsonEncode({
               'imageBase64': imageBase64,
               'mimeType': mimeType,
               if (imageHash != null && imageHash.isNotEmpty)
                 'imageHash': imageHash,
               if (forceRefresh) 'forceRefresh': true,
-              // Keep the prompt compact: send only id/name/category and cap
-              // the list. TODO: rank foods by recent usage/search context.
-              'availableFoods': availableFoods
-                  .take(200)
-                  .map((food) => {
-                        'id': food.id,
-                        'name': food.name,
-                        'category': food.category,
-                      })
-                  .toList(),
             }),
           )
           .timeout(timeout);
@@ -188,7 +205,6 @@ class RemoteVisionFoodService extends VisionFoodService {
         throw const VisionFoodException('AI 분석 응답 형식이 올바르지 않습니다.');
       }
 
-      final allowedFoodIds = availableFoods.map((food) => food.id).toSet();
       final candidates = <DetectedFoodCandidate>[];
       for (var index = 0;
           index < foods.length && candidates.length < 5;
@@ -196,11 +212,22 @@ class RemoteVisionFoodService extends VisionFoodService {
         final candidate = _candidateFromJson(
           foods[index],
           candidates.length,
-          allowedFoodIds,
         );
         if (candidate != null) {
           candidates.add(candidate);
         }
+      }
+      if (decoded['cached'] == true) {
+        _lastUserMessage = '같은 사진의 이전 분석 결과를 다시 표시합니다.';
+      }
+      if (imageHash != null && imageHash.isNotEmpty) {
+        await _writeCachedCandidates(
+          normalizedBaseUrl,
+          imageHash,
+          model: '${decoded['model'] ?? 'server'}',
+          detail: '${decoded['detail'] ?? 'server'}',
+          candidates: candidates,
+        );
       }
       return candidates;
     } on TimeoutException {
@@ -219,7 +246,6 @@ class RemoteVisionFoodService extends VisionFoodService {
   DetectedFoodCandidate? _candidateFromJson(
     Object? value,
     int index,
-    Set<String> allowedFoodIds,
   ) {
     final item = value is Map<String, dynamic> ? value : <String, dynamic>{};
     final name = '${item['name'] ?? ''}'.trim();
@@ -227,22 +253,140 @@ class RemoteVisionFoodService extends VisionFoodService {
       return null;
     }
     final estimatedGram = item['estimatedGram'];
-    final matchedFoodItemId = item['matchedFoodItemId'];
-    final normalizedMatchedFoodItemId = matchedFoodItemId is String &&
-            allowedFoodIds.contains(matchedFoodItemId)
-        ? matchedFoodItemId
-        : null;
     return DetectedFoodCandidate(
       id: 'remote_${DateTime.now().microsecondsSinceEpoch}_$index',
       name: name,
       confidenceLabel: _confidenceLabel(item['confidence']),
       description: '${item['description'] ?? '사진 기반 음식 후보입니다.'}',
       estimatedPortionText: '${item['estimatedPortionText'] ?? '확인 필요'}',
-      matchedFoodItemId: normalizedMatchedFoodItemId,
       selected: true,
       intakeGram: _normalizedGram(estimatedGram),
     );
   }
+
+  Future<String> _clientId() async {
+    final preferences = await SharedPreferences.getInstance();
+    final existing = preferences.getString(_clientIdKey);
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    final next =
+        'tm_${DateTime.now().microsecondsSinceEpoch}_${base64UrlEncode(bytes)}';
+    await preferences.setString(_clientIdKey, next);
+    return next;
+  }
+
+  Future<List<DetectedFoodCandidate>?> _readCachedCandidates(
+    String normalizedBaseUrl,
+    String imageHash,
+  ) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final indexKey = _cacheIndexKey(normalizedBaseUrl, imageHash);
+      final entryKey = preferences.getString(indexKey);
+      if (entryKey == null || entryKey.isEmpty) {
+        return null;
+      }
+      final raw = preferences.getString(entryKey);
+      if (raw == null || raw.isEmpty) {
+        await preferences.remove(indexKey);
+        return null;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        await preferences.remove(entryKey);
+        await preferences.remove(indexKey);
+        return null;
+      }
+      final createdAt = DateTime.tryParse('${decoded['createdAt'] ?? ''}');
+      if (createdAt == null ||
+          DateTime.now().difference(createdAt) > _localCacheTtl) {
+        await preferences.remove(entryKey);
+        await preferences.remove(indexKey);
+        return null;
+      }
+      final foods = decoded['foods'];
+      if (foods is! List) {
+        return null;
+      }
+      final candidates = <DetectedFoodCandidate>[];
+      for (var index = 0;
+          index < foods.length && candidates.length < 5;
+          index++) {
+        final candidate = _candidateFromJson(foods[index], index);
+        if (candidate != null) {
+          candidates.add(candidate);
+        }
+      }
+      return candidates;
+    } catch (error) {
+      debugPrint('[AI_LOCAL_CACHE_ERROR] error=$error');
+      return null;
+    }
+  }
+
+  Future<void> _writeCachedCandidates(
+    String normalizedBaseUrl,
+    String imageHash, {
+    required String model,
+    required String detail,
+    required List<DetectedFoodCandidate> candidates,
+  }) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final entryKey = _cacheEntryKey(
+        normalizedBaseUrl,
+        imageHash,
+        model,
+        detail,
+      );
+      final indexKey = _cacheIndexKey(normalizedBaseUrl, imageHash);
+      await preferences.setString(
+        entryKey,
+        jsonEncode({
+          'imageHash': imageHash,
+          'model': model,
+          'detail': detail,
+          'createdAt': DateTime.now().toIso8601String(),
+          'foods': candidates.map(_candidateToJson).toList(),
+        }),
+      );
+      await preferences.setString(indexKey, entryKey);
+    } catch (error) {
+      debugPrint('[AI_LOCAL_CACHE_WRITE_ERROR] error=$error');
+    }
+  }
+
+  Map<String, Object?> _candidateToJson(DetectedFoodCandidate candidate) {
+    return {
+      'name': candidate.name,
+      'confidence': _confidenceValue(candidate.confidenceLabel),
+      'description': candidate.description,
+      'estimatedPortionText': candidate.estimatedPortionText,
+      'estimatedGram': candidate.intakeGram,
+    };
+  }
+
+  String _cacheIndexKey(String normalizedBaseUrl, String imageHash) {
+    return '$_cacheIndexPrefix:${_hashText('$normalizedBaseUrl:$imageHash:${AppConfig.aiLocalCacheVariant}')}';
+  }
+
+  String _cacheEntryKey(
+    String normalizedBaseUrl,
+    String imageHash,
+    String model,
+    String detail,
+  ) {
+    return '$_cacheEntryPrefix:${_hashText('$normalizedBaseUrl:$imageHash:${AppConfig.aiLocalCacheVariant}:$model:$detail')}';
+  }
+
+  String _hashText(String value) =>
+      sha256.convert(utf8.encode(value)).toString();
+
+  String _shortHash(String value) =>
+      value.length > 12 ? value.substring(0, 12) : value;
 
   String _mimeTypeFor(XFile image) {
     final explicit = image.mimeType;
@@ -268,6 +412,14 @@ class RemoteVisionFoodService extends VisionFoodService {
       '보통' => '보통',
       '낮음' => '낮음',
       _ => '낮음',
+    };
+  }
+
+  String _confidenceValue(String label) {
+    return switch (label) {
+      '높음' => 'high',
+      '보통' => 'medium',
+      _ => 'low',
     };
   }
 
@@ -313,7 +465,23 @@ class FallbackVisionFoodService extends VisionFoodService {
   }) async {
     _lastUserMessage = null;
     try {
-      return await primary.detectFoodsFromImage(
+      final candidates = await primary.detectFoodsFromImage(
+        image,
+        imageHash: imageHash,
+        forceRefresh: forceRefresh,
+        availableFoods: availableFoods,
+      );
+      _lastUserMessage = primary.lastUserMessage;
+      return candidates;
+    } on VisionFoodException catch (error) {
+      if (error.statusCode == 429) {
+        rethrow;
+      }
+      // Portfolio/demo fallback: remote AI failures still show safe sample
+      // candidates, but quota limit errors intentionally guide manual search.
+      debugPrint('[AI_FALLBACK] reason=$error');
+      _lastUserMessage = '원격 AI 분석에 실패해 데모 후보를 표시합니다.';
+      return fallback.detectFoodsFromImage(
         image,
         imageHash: imageHash,
         forceRefresh: forceRefresh,

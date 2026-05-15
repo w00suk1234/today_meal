@@ -41,7 +41,7 @@ class NutritionSummaryCard extends StatelessWidget {
                 child: Text('kcal', style: AppTextStyles.caption),
               ),
               const Spacer(),
-              const AppTag(label: '로컬 DB 기준', icon: Icons.verified_outlined),
+              const AppTag(label: '확인 후 계산', icon: Icons.fact_check_outlined),
             ],
           ),
           const SizedBox(height: 14),

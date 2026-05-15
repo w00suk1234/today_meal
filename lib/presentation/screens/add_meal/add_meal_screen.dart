@@ -412,7 +412,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
         return;
       }
       if (matchedFoods[candidate.id] == null) {
-        _showSnack('${candidate.name}은 음식 DB 매칭이 필요합니다. 직접 검색해 주세요.');
+        _showSnack('정확한 기록을 위해 ${candidate.name}의 음식명을 직접 검색으로 확인해 주세요.');
         return;
       }
     }

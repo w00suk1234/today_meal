@@ -1,18 +1,11 @@
 import { createHash } from 'node:crypto';
 
 const MAX_IMAGE_BASE64_LENGTH = 4_000_000;
-const MAX_AVAILABLE_FOODS = 200;
 const MAX_OUTPUT_FOODS = 5;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const OPENAI_TIMEOUT_MS = 25_000;
 const OPENAI_CHAT_COMPLETIONS_URL =
   'https://api.openai.com/v1/chat/completions';
-
-type ApiFood = {
-  id: string;
-  name: string;
-  category: string;
-};
 
 type AnalysisFood = {
   name: string;
@@ -20,7 +13,6 @@ type AnalysisFood = {
   description: string;
   estimatedPortionText: string;
   estimatedGram: number;
-  matchedFoodItemId: string | null;
 };
 
 type ImageDetail = 'low' | 'auto' | 'high';
@@ -29,6 +21,8 @@ type AnalysisBody = {
   foods: AnalysisFood[];
   warning: string;
   cached: boolean;
+  model: string;
+  detail: ImageDetail;
 };
 
 type CacheEntry = {
@@ -40,13 +34,22 @@ const analysisCache: Map<string, CacheEntry> =
   (globalThis as any).__todayMealAnalysisCache ??
   ((globalThis as any).__todayMealAnalysisCache = new Map());
 
+type DailyLimitEntry = {
+  dateKey: string;
+  count: number;
+};
+
+const dailyLimitCounts: Map<string, DailyLimitEntry> =
+  (globalThis as any).__todayMealDailyLimitCounts ??
+  ((globalThis as any).__todayMealDailyLimitCounts = new Map());
+
 function setJsonHeaders(res: any, statusCode: number) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   // TODO: Restrict this to the deployed Flutter Web domain before production.
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id');
 }
 
 function sendJson(res: any, statusCode: number, body: unknown) {
@@ -119,25 +122,58 @@ function setCachedAnalysis(
   });
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dailyLimit() {
+  const parsed = Number(process.env.AI_DAILY_LIMIT_PER_CLIENT ?? '20');
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 20;
+  }
+  return Math.floor(parsed);
+}
+
+function headerValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return String(value[0] ?? '');
+  }
+  return String(value ?? '');
+}
+
+function clientIdFromRequest(req: any) {
+  const provided = headerValue(req.headers?.['x-client-id']).trim();
+  if (provided) {
+    return provided.slice(0, 120);
+  }
+  const forwardedFor = headerValue(req.headers?.['x-forwarded-for'])
+    .split(',')[0]
+    .trim();
+  const fallback = forwardedFor || req.socket?.remoteAddress || 'anonymous';
+  return `ip:${hashText(fallback).slice(0, 24)}`;
+}
+
+function consumeDailyLimit(clientId: string) {
+  const dateKey = todayKey();
+  const limit = dailyLimit();
+  const entry = dailyLimitCounts.get(clientId);
+  const next =
+    entry && entry.dateKey === dateKey
+      ? { dateKey, count: entry.count + 1 }
+      : { dateKey, count: 1 };
+  dailyLimitCounts.set(clientId, next);
+  return {
+    allowed: next.count <= limit,
+    count: next.count,
+    limit,
+  };
+}
+
 function parseBody(body: unknown): any {
   if (typeof body === 'string') {
     return JSON.parse(body);
   }
   return body ?? {};
-}
-
-function normalizeFoods(value: unknown): ApiFood[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .map((item) => ({
-      id: String(item?.id ?? '').trim(),
-      name: String(item?.name ?? '').trim(),
-      category: String(item?.category ?? '').trim(),
-    }))
-    .filter((food) => food.id && food.name)
-    .slice(0, MAX_AVAILABLE_FOODS);
 }
 
 function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' {
@@ -147,18 +183,12 @@ function normalizeConfidence(value: unknown): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
-function normalizeAnalysisFoods(value: unknown, availableFoods: ApiFood[]) {
-  const allowedIds = new Set(availableFoods.map((food) => food.id));
+function normalizeAnalysisFoods(value: unknown) {
   if (!Array.isArray(value)) {
     return [];
   }
   return value
     .map((item): AnalysisFood => {
-      const matchedId =
-        typeof item?.matchedFoodItemId === 'string' &&
-        allowedIds.has(item.matchedFoodItemId)
-          ? item.matchedFoodItemId
-          : null;
       const estimatedGram = Number(item?.estimatedGram);
       const normalizedGram =
         Number.isFinite(estimatedGram) && estimatedGram >= 20 && estimatedGram <= 2000
@@ -174,14 +204,13 @@ function normalizeAnalysisFoods(value: unknown, availableFoods: ApiFood[]) {
           String(item?.estimatedPortionText ?? '').trim().slice(0, 30) ||
           '확인 필요',
         estimatedGram: normalizedGram,
-        matchedFoodItemId: matchedId,
       };
     })
     .filter((food) => food.name)
     .slice(0, MAX_OUTPUT_FOODS);
 }
 
-function buildPrompt(availableFoods: ApiFood[]) {
+function buildPrompt() {
   return [
     'You are a Korean meal photo recognition assistant for a diet logging app.',
     'Analyze the meal image and return likely visible foods.',
@@ -195,32 +224,27 @@ function buildPrompt(availableFoods: ApiFood[]) {
     '5. Do not overclaim confidence. Use "high" only when the food is visually clear.',
     '6. Use "medium" or "low" when the food is partially visible, ambiguous, or could be confused with similar dishes.',
     '7. Do not generate calories, carbs, protein, or fat.',
-    '8. Only return name, confidence, description, estimatedPortionText, estimatedGram, matchedFoodItemId.',
-    '9. matchedFoodItemId must be selected only from availableFoods.',
-    '10. If no availableFoods item is clearly matched, set matchedFoodItemId to null.',
+    '8. Do not match against any food database. Do not return IDs.',
+    '9. Only return name, confidence, description, estimatedPortionText, estimatedGram.',
+    '10. Never include matchedFoodItemId, database IDs, calories, carbs, protein, or fat.',
     '11. If the image is not food or the food is impossible to identify, return an empty foods array.',
     '12. Return valid JSON only.',
     '',
-    'Available foods are provided as id/name/category. Use them only for matching, not for forcing a result.',
     'Descriptions must be short Korean sentences.',
     '',
     'JSON schema:',
-    '{"foods":[{"name":"고등어구이","confidence":"high","description":"구운 생선으로 보입니다.","estimatedPortionText":"약 1인분","estimatedGram":180,"matchedFoodItemId":"grilled_mackerel"}]}',
-    '',
-    `availableFoods: ${JSON.stringify(availableFoods)}`,
+    '{"foods":[{"name":"공깃밥","confidence":"high","description":"흰 쌀밥으로 보입니다.","estimatedPortionText":"약 1인분","estimatedGram":210}]}',
   ].join('\n');
 }
 
 async function callOpenAi({
   imageBase64,
   mimeType,
-  availableFoods,
   model,
   detail,
 }: {
   imageBase64: string;
   mimeType: string;
-  availableFoods: ApiFood[];
   model: string;
   detail: ImageDetail;
 }) {
@@ -243,8 +267,7 @@ async function callOpenAi({
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
-    // TODO: Add per-user daily analysis limits before production launch.
-    console.log(`[API_OPENAI_REQUEST] model=${model} detail=${detail}`);
+    console.log(`[API_OPENAI_REQUEST] model=${model} detail=${detail} promptFoods=0`);
     const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
       method: 'POST',
       headers: {
@@ -261,12 +284,12 @@ async function callOpenAi({
           {
             role: 'system',
             content:
-              'You return strict JSON only. Never estimate calories or macros.',
+              'You return strict JSON only. Never estimate calories or macros. Never return database IDs.',
           },
           {
             role: 'user',
             content: [
-              { type: 'text', text: buildPrompt(availableFoods) },
+              { type: 'text', text: buildPrompt() },
               {
                 type: 'image_url',
                 image_url: {
@@ -349,7 +372,7 @@ async function callOpenAi({
         },
       };
     }
-    const foods = normalizeAnalysisFoods(parsed.foods, availableFoods);
+    const foods = normalizeAnalysisFoods(parsed.foods);
     console.log(`[API_PARSE_OK] foods=${foods.length}`);
     return {
       statusCode: 200,
@@ -357,6 +380,8 @@ async function callOpenAi({
         foods,
         warning: '사진 기반 분석은 참고용이며 실제 섭취량 확인이 필요합니다.',
         cached: false,
+        model,
+        detail,
       },
     };
   } catch (error: any) {
@@ -399,13 +424,12 @@ export default async function handler(req: any, res: any) {
     const body = parseBody(req.body);
     const imageBase64 = String(body.imageBase64 ?? '').trim();
     const mimeType = String(body.mimeType ?? '').trim() || 'image/jpeg';
-    const availableFoods = normalizeFoods(body.availableFoods);
     const imageHash = normalizeImageHash(body.imageHash, imageBase64);
     const forceRefresh = body.forceRefresh === true;
+    const clientId = clientIdFromRequest(req);
     const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
     const model = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
     const detail = normalizeImageDetail(process.env.AI_IMAGE_DETAIL || 'low');
-    const availableFoodsHash = hashText(JSON.stringify(availableFoods));
 
     console.log('[API_ANALYZE_START]');
     console.log(
@@ -414,9 +438,9 @@ export default async function handler(req: any, res: any) {
       )}`,
     );
     console.log(
-      `[API_BODY] imageBase64Length=${imageBase64.length} foods=${availableFoods.length} imageHash=${shortHash(
+      `[API_BODY] imageBase64Length=${imageBase64.length} promptFoods=0 imageHash=${shortHash(
         imageHash,
-      )} forceRefresh=${forceRefresh}`,
+      )} client=${shortHash(hashText(clientId))} forceRefresh=${forceRefresh}`,
     );
 
     if (!imageBase64) {
@@ -442,13 +466,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const cacheKey = [
-      provider,
-      model,
-      detail,
-      imageHash,
-      availableFoodsHash,
-    ].join(':');
+    const cacheKey = [provider, model, detail, imageHash].join(':');
     const cached = forceRefresh ? null : getCachedAnalysis(cacheKey);
     if (cached) {
       console.log(`[API_CACHE_HIT] imageHash=${shortHash(imageHash)}`);
@@ -459,10 +477,23 @@ export default async function handler(req: any, res: any) {
       console.log(`[API_CACHE_BYPASS] imageHash=${shortHash(imageHash)}`);
     }
 
+    const limitResult = consumeDailyLimit(clientId);
+    console.log(
+      `[API_RATE_LIMIT] client=${shortHash(hashText(clientId))} count=${limitResult.count} limit=${limitResult.limit}`,
+    );
+    if (!limitResult.allowed) {
+      sendError(
+        res,
+        429,
+        'DAILY_LIMIT_EXCEEDED',
+        '오늘 AI 분석 가능 횟수를 모두 사용했습니다. 직접 검색으로 식단을 기록해 주세요.',
+      );
+      return;
+    }
+
     const result = await callOpenAi({
       imageBase64,
       mimeType,
-      availableFoods,
       model,
       detail,
     });
@@ -471,6 +502,8 @@ export default async function handler(req: any, res: any) {
       setCachedAnalysis(cacheKey, {
         foods: body.foods,
         warning: body.warning,
+        model: body.model,
+        detail: body.detail,
       });
       sendJson(res, 200, {...body, cached: false});
       return;

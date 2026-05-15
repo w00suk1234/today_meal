@@ -103,9 +103,6 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
     final food = widget.matchedFood;
     final baseGram = food?.servingGram ?? widget.candidate.intakeGram;
     final selected = widget.candidate.selected;
-    final kcal = food == null
-        ? null
-        : (food.kcalPer100g * widget.candidate.intakeGram / 100).round();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -153,37 +150,19 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
               ],
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _InfoTile(
-                    label: '예상 섭취량',
-                    value: widget.candidate.estimatedPortionText,
-                    icon: Icons.scale_outlined,
-                    color: AppColors.blue,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _InfoTile(
-                    label: food == null ? 'DB 매칭' : '계산 열량',
-                    value: food == null ? '확인 필요' : '${kcal}kcal',
-                    icon: food == null
-                        ? Icons.search_off_outlined
-                        : Icons.local_fire_department_outlined,
-                    color: food == null ? AppColors.orange : AppColors.primary,
-                  ),
-                ),
-              ],
+            _InfoTile(
+              label: '예상 섭취량',
+              value: widget.candidate.estimatedPortionText,
+              icon: Icons.scale_outlined,
+              color: AppColors.blue,
             ),
             const SizedBox(height: 10),
             if (food == null)
-              _MatchStatusPanel(
-                matchedFood: null,
+              _NeedsReviewPanel(
                 onMatchManually: widget.onMatchManually,
               )
-            else
-              _MatchStatusPanel(matchedFood: food),
+            else if (widget.onMatchManually != null)
+              _ManualEditButton(onTap: widget.onMatchManually!),
             const SizedBox(height: 14),
             const Text(
               '섭취량 선택',
@@ -351,20 +330,14 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-class _MatchStatusPanel extends StatelessWidget {
-  const _MatchStatusPanel({
-    required this.matchedFood,
-    this.onMatchManually,
-  });
+class _NeedsReviewPanel extends StatelessWidget {
+  const _NeedsReviewPanel({this.onMatchManually});
 
-  final FoodItem? matchedFood;
   final VoidCallback? onMatchManually;
 
   @override
   Widget build(BuildContext context) {
-    final food = matchedFood;
-    final matched = food != null;
-    final color = matched ? AppColors.primary : AppColors.orange;
+    const color = AppColors.orange;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -376,18 +349,14 @@ class _MatchStatusPanel extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            matched ? Icons.verified_outlined : Icons.search_off_outlined,
-            color: color,
-            size: 19,
-          ),
+          const Icon(Icons.manage_search_rounded, color: color, size: 19),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  matched ? '로컬 DB 매칭 완료' : '로컬 DB 미매칭',
+                const Text(
+                  '영양 계산 전 확인 필요',
                   style: TextStyle(
                     color: color,
                     fontSize: 12,
@@ -395,20 +364,16 @@ class _MatchStatusPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  matched
-                      ? '${food.name} · ${food.servingGram.round()}g 기준 · ${food.kcalPer100g.round()}kcal/100g'
-                      : '음식 DB에서 정확한 항목을 찾지 못했습니다. 직접 검색으로 확인해 주세요.',
-                  style: AppTextStyles.caption,
-                ),
-                if (!matched && onMatchManually != null) ...[
+                const Text('정확한 기록을 위해 음식명을 확인해 주세요.',
+                    style: AppTextStyles.caption),
+                if (onMatchManually != null) ...[
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 36,
                     child: TextButton.icon(
                       onPressed: onMatchManually,
                       icon: const Icon(Icons.search_rounded, size: 16),
-                      label: const Text('직접 검색으로 매칭하기'),
+                      label: const Text('직접 검색으로 수정'),
                     ),
                   ),
                 ],
@@ -416,6 +381,27 @@ class _MatchStatusPanel extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ManualEditButton extends StatelessWidget {
+  const _ManualEditButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        height: 40,
+        child: TextButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.search_rounded, size: 16),
+          label: const Text('직접 검색으로 수정'),
+        ),
       ),
     );
   }
@@ -485,9 +471,13 @@ class _ConfidenceBadge extends StatelessWidget {
     final color = switch (label) {
       '높음' => const Color(0xFF1F9D7A),
       '보통' => const Color(0xFFE98A15),
-      _ => const Color(0xFF6B7780),
+      _ => const Color(0xFF8A6D63),
     };
-    final text = label == '높음' ? '신뢰도 높음' : '확인이 필요해요';
+    final text = switch (label) {
+      '높음' => '비교적 확실',
+      '보통' => '확인이 필요해요',
+      _ => '직접 확인 필요',
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(

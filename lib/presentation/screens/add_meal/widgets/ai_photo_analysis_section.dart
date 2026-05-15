@@ -97,6 +97,12 @@ class AiPhotoAnalysisSection extends StatelessWidget {
               label: const Text('다시 분석하기'),
             ),
           ),
+          const SizedBox(height: 4),
+          const Text(
+            "모델 변경 후 새 결과를 보려면 '다시 분석하기'를 눌러주세요.",
+            textAlign: TextAlign.center,
+            style: AppTextStyles.caption,
+          ),
         ],
         const SizedBox(height: 8),
         const Text(AppConstants.estimateNotice,
@@ -166,7 +172,9 @@ class _AiResults extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(
-            title: '분석 결과', subtitle: '음식명, 신뢰도, 섭취량, DB 매칭을 확인하세요'),
+          title: '분석 결과',
+          subtitle: 'AI가 찾은 후보입니다. 실제 음식명과 섭취량을 확인해 주세요.',
+        ),
         AiFoodCandidateList(
           candidates: candidates,
           foodsByCandidateId: foodsByCandidateId,
