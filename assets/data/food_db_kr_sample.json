@@ -30,5 +30,9 @@
   {"id":"drink","name":"음료","category":"음료","servingGram":250,"kcalPer100g":45,"carbPer100g":11.0,"proteinPer100g":0.0,"fatPer100g":0.0},
   {"id":"smoothie","name":"스무디","category":"음료","servingGram":300,"kcalPer100g":70,"carbPer100g":14.0,"proteinPer100g":2.0,"fatPer100g":1.2},
   {"id":"cake","name":"케이크","category":"디저트","servingGram":120,"kcalPer100g":330,"carbPer100g":43.0,"proteinPer100g":5.0,"fatPer100g":15.0},
-  {"id":"bread","name":"빵","category":"빵","servingGram":80,"kcalPer100g":265,"carbPer100g":49.0,"proteinPer100g":9.0,"fatPer100g":3.2}
+  {"id":"bread","name":"빵","category":"빵","servingGram":80,"kcalPer100g":265,"carbPer100g":49.0,"proteinPer100g":9.0,"fatPer100g":3.2},
+  {"id":"hamburger","name":"햄버거","category":"패스트푸드","servingGram":220,"kcalPer100g":250,"carbPer100g":26.0,"proteinPer100g":12.0,"fatPer100g":11.0},
+  {"id":"cheeseburger","name":"치즈버거","category":"패스트푸드","servingGram":230,"kcalPer100g":270,"carbPer100g":25.0,"proteinPer100g":13.0,"fatPer100g":14.0},
+  {"id":"pizza","name":"피자","category":"패스트푸드","servingGram":150,"kcalPer100g":266,"carbPer100g":33.0,"proteinPer100g":11.0,"fatPer100g":10.0},
+  {"id":"french_fries","name":"감자튀김","category":"패스트푸드","servingGram":120,"kcalPer100g":312,"carbPer100g":41.0,"proteinPer100g":3.4,"fatPer100g":15.0}
 ]

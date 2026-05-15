@@ -307,21 +307,22 @@ function buildPrompt() {
     '4. Do not invent foods that are not visually supported.',
     '5. Do not overclaim confidence. Use "high" only when the food is visually clear.',
     '6. Use "medium" or "low" when the food is partially visible, ambiguous, or could be confused with similar dishes.',
-    '7. Food includes meals, snacks, desserts, drinks, ice cream, coffee, smoothies, bread, cake, fruit, meat dishes, soups, and side dishes.',
+    '7. Food includes meals, snacks, desserts, drinks, ice cream, coffee, smoothies, bread, cake, fruit, meat dishes, soups, side dishes, burgers, sandwiches, pizza, fries, and fast food.',
     '8. If the image clearly contains an edible item or drink, return at least one candidate.',
     '9. Do not return an empty foods array for clear food, dessert, snack, or drink images.',
     '10. For desserts and drinks, return concrete Korean names such as "아이스크림 콘", "아이스크림", "케이크", "빵", "스무디", "커피", or "음료" when visually supported.',
     '11. For meat dishes, return concrete Korean names such as "스테이크", "구운 고기", or "소고기 스테이크" when visually supported.',
-    '12. If the exact subtype is unclear, return a broader but useful candidate with medium or low confidence instead of returning empty.',
-    '13. Prefer specific Korean food names when visually supported, such as "시금치나물", "콩나물무침", "미역국", or "된장찌개".',
-    '14. If only a broad name such as "나물", "국", "찌개", "반찬", "생선", "고기", "밥", or "면" is supported, return confidence "medium" or "low".',
-    '15. Do not force a specific name when the exact type is unclear. In that case, add a short Korean description such as "정확한 종류 확인이 필요합니다."',
-    '16. Do not generate calories, carbs, protein, or fat.',
-    '17. Do not match against any food database. Do not return IDs.',
-    '18. Only return name, confidence, description, estimatedPortionText, estimatedGram.',
-    '19. Never include matchedFoodItemId, database IDs, calories, carbs, protein, or fat.',
-    '20. Only return an empty foods array when there is no visible food/drink or the image is impossible to interpret.',
-    '21. Return valid JSON only.',
+    '12. For fast food, return concrete Korean names such as "햄버거", "치즈버거", "샌드위치", "피자", or "감자튀김" when visually supported.',
+    '13. If the exact subtype is unclear, return a broader but useful candidate with medium or low confidence instead of returning empty.',
+    '14. Prefer specific Korean food names when visually supported, such as "시금치나물", "콩나물무침", "미역국", or "된장찌개".',
+    '15. If only a broad name such as "나물", "국", "찌개", "반찬", "생선", "고기", "밥", or "면" is supported, return confidence "medium" or "low".',
+    '16. Do not force a specific name when the exact type is unclear. In that case, add a short Korean description such as "정확한 종류 확인이 필요합니다."',
+    '17. Do not generate calories, carbs, protein, or fat.',
+    '18. Do not match against any food database. Do not return IDs.',
+    '19. Only return name, confidence, description, estimatedPortionText, estimatedGram.',
+    '20. Never include matchedFoodItemId, database IDs, calories, carbs, protein, or fat.',
+    '21. Only return an empty foods array when there is no visible food/drink or the image is impossible to interpret.',
+    '22. Return valid JSON only.',
     '',
     'Descriptions must be short Korean sentences.',
     '',
@@ -595,12 +596,34 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const result = await callOpenAi({
+    let result = await callOpenAi({
       imageBase64,
       mimeType,
       model,
       detail,
     });
+    if (result.statusCode === 200 && 'foods' in result.body) {
+      const body = result.body as AnalysisBody;
+      if (body.foods.length === 0 && detail === 'low') {
+        console.log('[API_EMPTY_RETRY] reason=empty_foods detail=auto');
+        const retryResult = await callOpenAi({
+          imageBase64,
+          mimeType,
+          model,
+          detail: 'auto',
+        });
+        if (retryResult.statusCode === 200 && 'foods' in retryResult.body) {
+          const retryBody = retryResult.body as AnalysisBody;
+          if (retryBody.foods.length > 0) {
+            result = retryResult;
+          } else {
+            console.log('[API_EMPTY_RETRY_SKIP] reason=still_empty');
+          }
+        } else {
+          console.log('[API_EMPTY_RETRY_SKIP] reason=retry_failed');
+        }
+      }
+    }
     if (result.statusCode === 200 && 'foods' in result.body) {
       const body = result.body as AnalysisBody;
       if (body.foods.length > 0) {
