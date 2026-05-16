@@ -20,21 +20,33 @@ class ImagePickerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPreview = previewImageBytes != null;
+
     return AppCard(
       onTap: () => _showImageSourcePicker(context),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       color: AppColors.lightGreenBackground,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(20),
             child: AspectRatio(
-              aspectRatio: 16 / 10,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (previewImageBytes == null)
-                    Container(
+              aspectRatio: 16 / 9,
+              child: hasPreview
+                  ? Container(
+                      color: AppColors.creamBackground,
+                      alignment: Alignment.center,
+                      child: Image.memory(
+                        previewImageBytes!,
+                        fit: BoxFit.contain,
+                        alignment: Alignment.center,
+                        filterQuality: FilterQuality.high,
+                        gaplessPlayback: true,
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -45,72 +57,32 @@ class ImagePickerCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      child: Column(
+                      child: const Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            width: 58,
-                            height: 58,
-                            decoration: const BoxDecoration(
-                                color: Colors.white, shape: BoxShape.circle),
-                            child: const Icon(
-                                Icons.add_photo_alternate_outlined,
-                                size: 31,
-                                color: AppColors.primary),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text('음식 사진을 추가해 주세요',
-                              style: TextStyle(fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 4),
-                          const Text('이 영역을 눌러 카메라 또는 갤러리를 선택해 주세요',
-                              style: AppTextStyles.caption),
-                        ],
-                      ),
-                    )
-                  else
-                    Container(
-                      color: AppColors.creamBackground,
-                      alignment: Alignment.center,
-                      child: Image.memory(
-                        previewImageBytes!,
-                        fit: BoxFit.contain,
-                        alignment: Alignment.center,
-                        filterQuality: FilterQuality.high,
-                        gaplessPlayback: true,
-                      ),
-                    ),
-                  Positioned(
-                    left: 14,
-                    right: 14,
-                    bottom: 14,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.44),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.auto_awesome,
-                              color: Colors.white, size: 17),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              previewImageBytes == null ? '눌러서 사진 선택하기' : '눌러서 사진 바꾸기',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900),
+                          _EmptyPhotoIcon(),
+                          SizedBox(height: 10),
+                          Text(
+                            '음식 사진을 추가해 주세요',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
                             ),
                           ),
+                          SizedBox(height: 4),
+                          Text(
+                            '카메라 또는 갤러리에서 선택해 주세요',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.caption,
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
+          const SizedBox(height: 10),
+          _PickPhotoButton(hasPreview: hasPreview),
         ],
       ),
     );
@@ -175,6 +147,70 @@ class ImagePickerCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _EmptyPhotoIcon extends StatelessWidget {
+  const _EmptyPhotoIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 52,
+      height: 52,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(
+        Icons.add_photo_alternate_outlined,
+        size: 29,
+        color: AppColors.primary,
+      ),
+    );
+  }
+}
+
+class _PickPhotoButton extends StatelessWidget {
+  const _PickPhotoButton({required this.hasPreview});
+
+  final bool hasPreview;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.touch_app_rounded,
+            color: Colors.white,
+            size: 18,
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              hasPreview ? '사진 바꾸기' : '사진 선택하기',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
