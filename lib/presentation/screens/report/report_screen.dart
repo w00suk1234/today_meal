@@ -10,6 +10,7 @@ import '../../../core/utils/health_calculator.dart';
 import '../../../core/utils/nutrition_calculator.dart';
 import '../../../core/utils/report_generator.dart';
 import '../../../data/models/daily_summary.dart';
+import '../../../data/models/weight_record.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_scaffold.dart';
@@ -35,11 +36,13 @@ class ReportScreen extends StatelessWidget {
       summary: summary,
       profile: controller.profile,
       healthProfile: controller.healthProfile,
-      weightLogs: controller.weightLogs,
+      weightRecords: controller.weightRecords,
     );
     final weekly = _weeklySummaries(controller);
     final streak = _streakDays(controller);
     final health = controller.healthProfile;
+    final latestWeight = controller.latestWeightKg;
+    final latestBmi = controller.latestBmi;
     final hasTodayRecords = summary.records.isNotEmpty;
     final hasWeeklyRecords =
         weekly.any((summary) => summary.records.isNotEmpty);
@@ -84,7 +87,7 @@ class ReportScreen extends StatelessWidget {
             Expanded(
               child: MetricCard(
                 title: '현재 체중',
-                value: '${health.weightKg.toStringAsFixed(1)}kg',
+                value: _weightText(latestWeight),
                 subtitle: '목표 ${health.targetWeightKg.toStringAsFixed(1)}kg',
                 icon: Icons.monitor_weight_outlined,
                 color: AppColors.primary,
@@ -94,8 +97,9 @@ class ReportScreen extends StatelessWidget {
             Expanded(
               child: MetricCard(
                 title: 'BMI',
-                value: health.bmi <= 0 ? '미입력' : health.bmi.toStringAsFixed(1),
-                subtitle: HealthCalculator.getBmiCategory(health.bmi),
+                value:
+                    latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
+                subtitle: '${HealthCalculator.getBmiCategory(latestBmi)} · 참고용',
                 icon: Icons.favorite_outline,
                 color: AppColors.coral,
               ),
@@ -104,18 +108,21 @@ class ReportScreen extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         _WeightTrendCard(
-            weights: controller.weightLogs.map((log) => log.weightKg).toList()),
-        if (controller.weightLogs.isEmpty) ...[
-          const SizedBox(height: 10),
-          AppEmptyState(
-            message: '몸상태 기록이 쌓이면 체중 변화 추이를 더 자연스럽게 보여드릴게요.',
-            icon: Icons.monitor_weight_outlined,
-            actionLabel: '식사 추가하기',
-            onAction: onAddMeal,
-          ),
-        ],
+          records: controller.weightRecords,
+          latestFallbackWeight: latestWeight,
+          targetWeight: health.targetWeightKg,
+          latestBmi: latestBmi,
+          trend7Days: controller.weightTrend7Days,
+        ),
       ],
     );
+  }
+
+  static String _weightText(double? value) {
+    if (value == null || value <= 0) {
+      return '미입력';
+    }
+    return '${value.toStringAsFixed(1)}kg';
   }
 
   List<DailySummary> _weeklySummaries(TodayMealController controller) {
@@ -503,32 +510,121 @@ class _StreakCard extends StatelessWidget {
 }
 
 class _WeightTrendCard extends StatelessWidget {
-  const _WeightTrendCard({required this.weights});
+  const _WeightTrendCard({
+    required this.records,
+    required this.latestFallbackWeight,
+    required this.targetWeight,
+    required this.latestBmi,
+    required this.trend7Days,
+  });
 
-  final List<double> weights;
+  final List<WeightRecord> records;
+  final double? latestFallbackWeight;
+  final double targetWeight;
+  final double latestBmi;
+  final double? trend7Days;
 
   @override
   Widget build(BuildContext context) {
-    final latest = weights.isEmpty ? 0.0 : weights.last;
-    final first = weights.isEmpty ? latest : weights.first;
-    final diff = latest - first;
+    final hasRecords = records.isNotEmpty;
+    final firstWeight = hasRecords ? records.first.weightKg : latestFallbackWeight;
+    final latestWeight = hasRecords ? records.last.weightKg : latestFallbackWeight;
+    final totalDiff = firstWeight == null || latestWeight == null
+        ? null
+        : latestWeight - firstWeight;
+    final targetDiff = latestWeight == null || targetWeight <= 0
+        ? null
+        : targetWeight - latestWeight;
     return AppCard(
       color: AppColors.creamBackground,
       borderColor: AppColors.orange.withValues(alpha: 0.18),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.show_chart_rounded, color: AppColors.orange),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              weights.isEmpty
-                  ? '아직 체중 변화 기록이 없습니다.'
-                  : '최근 체중 변화 ${diff >= 0 ? '+' : ''}${diff.toStringAsFixed(1)}kg',
-              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w800),
-            ),
+          Row(
+            children: [
+              const Icon(Icons.show_chart_rounded, color: AppColors.orange),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  hasRecords ? '몸무게 변화 추이' : '몸무게 기록 대기',
+                  style: AppTextStyles.section,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          if (!hasRecords)
+            const Text(
+              '아직 몸무게 기록이 없습니다. 홈에서 오늘 몸무게를 기록해 보세요.',
+              style: AppTextStyles.body,
+            )
+          else ...[
+            _TrendRow(
+              label: '시작 → 최신',
+              value:
+                  '${firstWeight!.toStringAsFixed(1)}kg → ${latestWeight!.toStringAsFixed(1)}kg',
+            ),
+            const SizedBox(height: 8),
+            _TrendRow(
+              label: '최근 7일',
+              value: trend7Days == null
+                  ? '비교할 기록이 더 필요해요'
+                  : '${trend7Days! >= 0 ? '+' : ''}${trend7Days!.toStringAsFixed(1)}kg 변화',
+            ),
+            const SizedBox(height: 8),
+            _TrendRow(
+              label: '목표까지',
+              value: targetDiff == null
+                  ? '목표 체중 미입력'
+                  : targetDiff.abs() < 0.1
+                      ? '목표 체중에 가까워요'
+                      : '목표 체중까지 ${targetDiff.abs().toStringAsFixed(1)}kg 남았어요',
+            ),
+            const SizedBox(height: 8),
+            _TrendRow(
+              label: '최신 BMI',
+              value: latestBmi <= 0
+                  ? '키와 몸무게 입력 필요'
+                  : '${latestBmi.toStringAsFixed(1)} · 참고용',
+            ),
+            if (totalDiff != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                '전체 기록 기준 ${totalDiff >= 0 ? '+' : ''}${totalDiff.toStringAsFixed(1)}kg 변화',
+                style: AppTextStyles.caption,
+              ),
+            ],
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _TrendRow extends StatelessWidget {
+  const _TrendRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 86,
+          child: Text(label, style: AppTextStyles.caption),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+      ],
     );
   }
 }

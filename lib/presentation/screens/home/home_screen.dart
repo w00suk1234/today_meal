@@ -34,6 +34,8 @@ class HomeScreen extends StatelessWidget {
     final summary = controller.todaySummary;
     final profile = controller.profile;
     final health = controller.healthProfile;
+    final latestWeight = controller.latestWeightKg;
+    final latestBmi = controller.latestBmi;
     final timingMessages = MealTimingAnalyzer.generateFeedback(
         records: summary.records, sleepTime: health.sleepTime);
     final timingMessage = summary.records.isEmpty
@@ -74,8 +76,9 @@ class HomeScreen extends StatelessWidget {
             Expanded(
               child: MetricCard(
                 title: 'BMI',
-                value: health.bmi <= 0 ? '미입력' : health.bmi.toStringAsFixed(1),
-                subtitle: HealthCalculator.getBmiCategory(health.bmi),
+                value:
+                    latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
+                subtitle: '${HealthCalculator.getBmiCategory(latestBmi)} · 참고용',
                 icon: Icons.monitor_heart_outlined,
                 color: AppColors.coral,
               ),
@@ -83,14 +86,53 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: MetricCard(
-                title: 'BMR / 목표',
-                value: '${health.bmr.round()} / ${health.targetKcal.round()}',
-                subtitle: 'kcal 추정',
-                icon: Icons.local_fire_department_outlined,
-                color: AppColors.orange,
+                title: '최근 몸무게',
+                value: _weightText(latestWeight),
+                subtitle: '목표 ${_weightText(health.targetWeightKg)}',
+                icon: Icons.monitor_weight_outlined,
+                color: AppColors.primary,
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 10),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.orange.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: const Icon(Icons.local_fire_department_outlined,
+                        color: AppColors.orange, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'BMR ${health.bmr.round()} · 목표 ${health.targetKcal.round()}kcal',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: FilledButton.icon(
+                  onPressed: () => _showWeightRecordSheet(context),
+                  icon: const Icon(Icons.add_chart_rounded, size: 18),
+                  label: const Text('오늘 몸무게 기록'),
+                ),
+              ),
+            ],
+          ),
         ),
         const SectionHeader(title: '식사 기록 상태'),
         MealStatusCard(
@@ -147,6 +189,130 @@ class HomeScreen extends StatelessWidget {
 
   static bool _hasMeal(List<MealRecord> records, String type) {
     return records.any((record) => record.mealType == type);
+  }
+
+  void _showWeightRecordSheet(BuildContext context) {
+    final rootContext = context;
+    final controller = AppScope.of(context);
+    final weightController = TextEditingController(
+      text: controller.latestWeightKg?.toStringAsFixed(1) ?? '',
+    );
+    final memoController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: rootContext,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            Future<void> save() async {
+              final weight =
+                  double.tryParse(weightController.text.trim().replaceAll(',', '.'));
+              if (weight == null || weight < 20 || weight > 300) {
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  const SnackBar(content: Text('몸무게는 20~300kg 범위로 입력해 주세요.')),
+                );
+                return;
+              }
+
+              setModalState(() => saving = true);
+              try {
+                await controller.saveTodayWeightRecord(
+                  weight,
+                  memo: memoController.text,
+                );
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop();
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  const SnackBar(content: Text('오늘 몸무게를 기록했습니다.')),
+                );
+              } catch (_) {
+                if (rootContext.mounted) {
+                  ScaffoldMessenger.of(rootContext).showSnackBar(
+                    const SnackBar(content: Text('몸무게 기록 저장에 실패했습니다.')),
+                  );
+                }
+              } finally {
+                if (modalContext.mounted) {
+                  setModalState(() => saving = false);
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 18,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('오늘 몸무게 기록', style: AppTextStyles.section),
+                  const SizedBox(height: 6),
+                  const Text('BMI와 변화 추이를 위한 참고용 기록입니다.',
+                      style: AppTextStyles.caption),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: weightController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: '오늘 몸무게',
+                      suffixText: 'kg',
+                    ),
+                    autofocus: true,
+                    onSubmitted: (_) {
+                      if (!saving) {
+                        save();
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: memoController,
+                    decoration: const InputDecoration(
+                      labelText: '메모',
+                      hintText: '선택 입력',
+                    ),
+                    maxLength: 60,
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : save,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(saving ? '저장 중...' : '저장'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      weightController.dispose();
+      memoController.dispose();
+    });
+  }
+
+  static String _weightText(double? value) {
+    if (value == null || value <= 0) {
+      return '미입력';
+    }
+    return '${value.toStringAsFixed(1)}kg';
   }
 
   String _greeting(String nickname) {

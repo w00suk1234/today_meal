@@ -2,7 +2,7 @@ import '../../data/models/daily_summary.dart';
 import '../../data/models/health_profile.dart';
 import '../../data/models/meal_record.dart';
 import '../../data/models/user_profile.dart';
-import '../../data/models/weight_log.dart';
+import '../../data/models/weight_record.dart';
 import 'health_calculator.dart';
 import 'meal_timing_analyzer.dart';
 
@@ -19,7 +19,7 @@ class ReportGenerator {
     required DailySummary summary,
     required UserProfile profile,
     required HealthProfile? healthProfile,
-    List<WeightLog> weightLogs = const [],
+    List<WeightRecord> weightRecords = const [],
   }) {
     if (summary.records.isEmpty) {
       return [
@@ -70,20 +70,26 @@ class ReportGenerator {
     }
 
     if (healthProfile != null) {
+      final latestWeight = weightRecords.isEmpty
+          ? healthProfile.weightKg
+          : weightRecords.last.weightKg;
+      final latestBmi =
+          HealthCalculator.calculateBmi(latestWeight, healthProfile.heightCm);
       messages.add(
-        '현재 BMI는 ${healthProfile.bmi.toStringAsFixed(1)}로 ${HealthCalculator.getBmiCategory(healthProfile.bmi)}입니다.',
+        '현재 BMI는 ${latestBmi.toStringAsFixed(1)}로 ${HealthCalculator.getBmiCategory(latestBmi)}입니다.',
       );
       messages.add(
           '추정 기초대사량은 ${healthProfile.bmr.round()}kcal, 유지 칼로리는 ${healthProfile.tdee.round()}kcal입니다.');
       final diff = HealthCalculator.calculateWeightDiff(
-          healthProfile.weightKg, healthProfile.targetWeightKg);
-      if (diff != 0) {
-        messages.add('목표 체중까지 ${diff.toStringAsFixed(1)}kg 차이가 있습니다.');
+          latestWeight, healthProfile.targetWeightKg);
+      if (diff.abs() >= 0.1) {
+        messages.add('목표 체중까지 ${diff.abs().toStringAsFixed(1)}kg 차이가 있습니다.');
       }
-      if (weightLogs.length >= 2) {
-        final sortedLogs = [...weightLogs]
-          ..sort((a, b) => a.loggedAt.compareTo(b.loggedAt));
-        final change = sortedLogs.last.weightKg - sortedLogs.first.weightKg;
+      if (weightRecords.length >= 2) {
+        final sortedRecords = [...weightRecords]
+          ..sort((a, b) => a.date.compareTo(b.date));
+        final change =
+            sortedRecords.last.weightKg - sortedRecords.first.weightKg;
         messages.add(
             '최근 몸무게 기록 변화는 ${change >= 0 ? '+' : ''}${change.toStringAsFixed(1)}kg입니다.');
       }

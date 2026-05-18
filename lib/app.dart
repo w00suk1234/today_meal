@@ -4,6 +4,7 @@ import 'core/constants/app_colors.dart';
 import 'core/constants/app_config.dart';
 import 'core/constants/app_constants.dart';
 import 'core/utils/date_utils.dart';
+import 'core/utils/health_calculator.dart';
 import 'core/utils/nutrition_calculator.dart';
 import 'data/local/local_storage_service.dart';
 import 'data/models/daily_summary.dart';
@@ -12,10 +13,12 @@ import 'data/models/health_profile.dart';
 import 'data/models/meal_record.dart';
 import 'data/models/user_profile.dart';
 import 'data/models/weight_log.dart';
+import 'data/models/weight_record.dart';
 import 'data/repositories/food_repository.dart';
 import 'data/repositories/health_repository.dart';
 import 'data/repositories/meal_repository.dart';
 import 'data/repositories/user_repository.dart';
+import 'data/repositories/weight_repository.dart';
 import 'presentation/screens/add_meal/add_meal_screen.dart';
 import 'presentation/screens/home/home_screen.dart';
 import 'presentation/screens/records/records_screen.dart';
@@ -129,24 +132,28 @@ class TodayMealController extends ChangeNotifier {
     required this.mealRepository,
     required this.userRepository,
     required this.healthRepository,
+    required this.weightRepository,
     required this.visionFoodService,
     required this.foods,
     required this.records,
     required this.profile,
     required this.healthProfile,
     required this.weightLogs,
+    required this.weightRecords,
   });
 
   final FoodRepository foodRepository;
   final MealRepository mealRepository;
   final UserRepository userRepository;
   final HealthRepository healthRepository;
+  final WeightRepository weightRepository;
   final VisionFoodService visionFoodService;
   final List<FoodItem> foods;
   List<MealRecord> records;
   UserProfile profile;
   HealthProfile healthProfile;
   List<WeightLog> weightLogs;
+  List<WeightRecord> weightRecords;
 
   static Future<TodayMealController> create() async {
     final storage = await LocalStorageService.create();
@@ -154,6 +161,7 @@ class TodayMealController extends ChangeNotifier {
     final mealRepository = MealRepository(storage);
     final userRepository = UserRepository(storage);
     final healthRepository = HealthRepository(storage);
+    final weightRepository = WeightRepository(storage);
     final healthProfile = await healthRepository.loadProfile();
     final visionFoodService = AppConfig.hasUsableAiApiBaseUrl
         ? FallbackVisionFoodService(primary: RemoteVisionFoodService())
@@ -163,12 +171,14 @@ class TodayMealController extends ChangeNotifier {
       mealRepository: mealRepository,
       userRepository: userRepository,
       healthRepository: healthRepository,
+      weightRepository: weightRepository,
       visionFoodService: visionFoodService,
       foods: await foodRepository.loadFoods(),
       records: await mealRepository.loadRecords(),
       profile: await userRepository.loadProfile(),
       healthProfile: healthProfile,
       weightLogs: await healthRepository.loadWeightLogs(),
+      weightRecords: await weightRepository.getAll(),
     );
   }
 
@@ -181,6 +191,41 @@ class TodayMealController extends ChangeNotifier {
 
   DailySummary get todaySummary =>
       summaryFor(AppDateUtils.dateKey(DateTime.now()));
+
+  WeightRecord? get latestWeightRecord =>
+      weightRecords.isEmpty ? null : weightRecords.last;
+
+  double? get latestWeightKg {
+    final latest = latestWeightRecord?.weightKg;
+    if (latest != null && latest > 0) {
+      return latest;
+    }
+    return healthProfile.weightKg > 0 ? healthProfile.weightKg : null;
+  }
+
+  double get latestBmi {
+    final weightKg = latestWeightKg;
+    if (weightKg == null || healthProfile.heightCm <= 0) {
+      return 0;
+    }
+    return HealthCalculator.calculateBmi(weightKg, healthProfile.heightCm);
+  }
+
+  double? get weightTrend7Days {
+    final records = _weightRecordsBetween(
+      DateTime.now().subtract(const Duration(days: 6)),
+      DateTime.now(),
+    );
+    if (records.length < 2) {
+      return null;
+    }
+    return records.last.weightKg - records.first.weightKg;
+  }
+
+  List<WeightRecord> get recentWeightRecords7Days => _weightRecordsBetween(
+        DateTime.now().subtract(const Duration(days: 6)),
+        DateTime.now(),
+      );
 
   Future<void> addRecord(MealRecord record) async {
     records = [...records, record];
@@ -230,8 +275,98 @@ class TodayMealController extends ChangeNotifier {
     await healthRepository.saveProfile(healthProfile,
         previousWeightKg: previousWeight);
     await userRepository.saveProfile(profile);
+    if ((previousWeight - healthProfile.weightKg).abs() >= 0.1) {
+      await weightRepository.saveToday(
+        healthProfile.weightKg,
+        memo: '설정에서 건강 정보 저장',
+      );
+    }
+    weightRecords = await weightRepository.getAll();
     weightLogs = await healthRepository.loadWeightLogs();
     notifyListeners();
+  }
+
+  Future<void> saveTodayWeightRecord(double weightKg, {String? memo}) async {
+    if (weightKg <= 0) {
+      throw ArgumentError.value(weightKg, 'weightKg', 'Weight must be positive.');
+    }
+    final previousWeight = healthProfile.weightKg;
+    await weightRepository.saveToday(weightKg, memo: memo);
+    weightRecords = await weightRepository.getAll();
+
+    healthProfile = healthProfile.copyWith(weightKg: weightKg).recalculated();
+    profile = UserProfile(
+      nickname: healthProfile.nickname,
+      targetKcal: healthProfile.targetKcal,
+      heightCm: healthProfile.heightCm,
+      weightKg: healthProfile.weightKg,
+      goalType: healthProfile.goalType,
+    );
+    await healthRepository.saveProfile(
+      healthProfile,
+      previousWeightKg: previousWeight,
+    );
+    await userRepository.saveProfile(profile);
+    weightLogs = await healthRepository.loadWeightLogs();
+    notifyListeners();
+  }
+
+  Future<void> deleteWeightRecord(String id) async {
+    await weightRepository.delete(id);
+    weightRecords = await weightRepository.getAll();
+    final latest = latestWeightRecord;
+    if (latest != null) {
+      healthProfile =
+          healthProfile.copyWith(weightKg: latest.weightKg).recalculated();
+      profile = UserProfile(
+        nickname: healthProfile.nickname,
+        targetKcal: healthProfile.targetKcal,
+        heightCm: healthProfile.heightCm,
+        weightKg: healthProfile.weightKg,
+        goalType: healthProfile.goalType,
+      );
+      await healthRepository.saveProfile(healthProfile);
+      await userRepository.saveProfile(profile);
+      weightLogs = await healthRepository.loadWeightLogs();
+    }
+    notifyListeners();
+  }
+
+  Map<String, Object?> buildAiHealthContext() {
+    final latestWeight = latestWeightKg;
+    final bmi = latestWeight == null || healthProfile.heightCm <= 0
+        ? null
+        : HealthCalculator.calculateBmi(latestWeight, healthProfile.heightCm);
+
+    // Future AI meal coach payload: OpenAI calls should consume this map,
+    // but this method intentionally does not call any remote model.
+    return {
+      'heightCm': healthProfile.heightCm > 0 ? healthProfile.heightCm : null,
+      'latestWeightKg': latestWeight,
+      'targetWeightKg':
+          healthProfile.targetWeightKg > 0 ? healthProfile.targetWeightKg : null,
+      'bmi': bmi,
+      'bmiLabel': bmi == null ? null : HealthCalculator.getBmiCategory(bmi),
+      'weightTrend7Days': weightTrend7Days,
+      'goalType': healthProfile.goalType,
+      'activityLevel': healthProfile.activityLevel,
+      'ageYears': healthProfile.effectiveAgeYears > 0
+          ? healthProfile.effectiveAgeYears
+          : null,
+      'gender': healthProfile.gender,
+      'bmr': healthProfile.bmr > 0 ? healthProfile.bmr : null,
+      'tdee': healthProfile.tdee > 0 ? healthProfile.tdee : null,
+      'targetKcal': healthProfile.targetKcal > 0 ? healthProfile.targetKcal : null,
+    };
+  }
+
+  List<WeightRecord> _weightRecordsBetween(DateTime start, DateTime end) {
+    final normalizedStart = DateTime(start.year, start.month, start.day);
+    final normalizedEnd = DateTime(end.year, end.month, end.day);
+    return weightRecords.where((record) {
+      final date = DateTime(record.date.year, record.date.month, record.date.day);
+      return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
+    }).toList();
   }
 }
 

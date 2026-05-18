@@ -16,11 +16,13 @@ class HealthProfile {
     required this.tdee,
     required this.bmi,
     this.birthDate,
+    this.ageYears,
   });
 
   final String nickname;
   final String gender;
   final DateTime? birthDate;
+  final int? ageYears;
   final double heightCm;
   final double weightKg;
   final double targetWeightKg;
@@ -46,6 +48,7 @@ class HealthProfile {
       bmr: 0,
       tdee: 0,
       bmi: 0,
+      ageYears: 30,
     );
   }
 
@@ -66,6 +69,8 @@ class HealthProfile {
     final sleepTime = (json['sleepTime'] as String?) ??
         (json['sleep_time'] as String?) ??
         '23:30';
+    final ageRaw = json['ageYears'] ?? json['age_years'] ?? json['age'];
+    final parsedAge = ageRaw is num ? ageRaw.toInt() : int.tryParse('$ageRaw');
 
     return HealthProfile(
       nickname: json['nickname'] as String? ?? '',
@@ -73,6 +78,9 @@ class HealthProfile {
       birthDate: birthDateRaw == null || '$birthDateRaw'.isEmpty
           ? null
           : DateTime.tryParse('$birthDateRaw'),
+      ageYears: parsedAge != null && parsedAge >= 0
+          ? parsedAge.clamp(0, 120).toInt()
+          : null,
       heightCm: toDouble(json['heightCm'] ?? json['height_cm'], 170),
       weightKg: toDouble(json['weightKg'] ?? json['weight_kg'], 70),
       targetWeightKg:
@@ -89,7 +97,7 @@ class HealthProfile {
   }
 
   HealthProfile recalculated() {
-    final age = HealthCalculator.calculateAge(birthDate);
+    final age = effectiveAgeYears;
     final nextBmi = HealthCalculator.calculateBmi(weightKg, heightCm);
     final nextBmr = HealthCalculator.calculateBmrMifflinStJeor(
       gender: gender,
@@ -108,10 +116,19 @@ class HealthProfile {
     );
   }
 
+  int get effectiveAgeYears {
+    final explicitAge = ageYears;
+    if (explicitAge != null && explicitAge > 0) {
+      return explicitAge;
+    }
+    return HealthCalculator.calculateAge(birthDate);
+  }
+
   HealthProfile copyWith({
     String? nickname,
     String? gender,
     DateTime? birthDate,
+    int? ageYears,
     double? heightCm,
     double? weightKg,
     double? targetWeightKg,
@@ -127,6 +144,7 @@ class HealthProfile {
       nickname: nickname ?? this.nickname,
       gender: gender ?? this.gender,
       birthDate: birthDate ?? this.birthDate,
+      ageYears: ageYears ?? this.ageYears,
       heightCm: heightCm ?? this.heightCm,
       weightKg: weightKg ?? this.weightKg,
       targetWeightKg: targetWeightKg ?? this.targetWeightKg,
@@ -145,6 +163,7 @@ class HealthProfile {
       'nickname': nickname,
       'gender': gender,
       'birthDate': birthDate?.toIso8601String(),
+      'ageYears': ageYears,
       'heightCm': heightCm,
       'weightKg': weightKg,
       'targetWeightKg': targetWeightKg,

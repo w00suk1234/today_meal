@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _heightController = TextEditingController();
   final _weightController = TextEditingController();
   final _targetWeightController = TextEditingController();
+  final _ageController = TextEditingController();
   DateTime? _birthDate;
   String _gender = 'male';
   String _activityLevel = 'light';
@@ -46,6 +47,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _heightController.text = profile.heightCm.toStringAsFixed(0);
     _weightController.text = profile.weightKg.toStringAsFixed(1);
     _targetWeightController.text = profile.targetWeightKg.toStringAsFixed(1);
+    _ageController.text =
+        profile.effectiveAgeYears > 0 ? profile.effectiveAgeYears.toString() : '';
     _birthDate = profile.birthDate;
     _gender = profile.gender;
     _activityLevel = profile.activityLevel;
@@ -60,6 +63,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _heightController.dispose();
     _weightController.dispose();
     _targetWeightController.dispose();
+    _ageController.dispose();
     super.dispose();
   }
 
@@ -67,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final current = _draftProfile().recalculated();
     final bmiCategory = HealthCalculator.getBmiCategory(current.bmi);
-    final age = HealthCalculator.calculateAge(current.birthDate);
+    final age = current.effectiveAgeYears;
 
     return AppScaffold(
       controller: widget.scrollController,
@@ -108,7 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-        const SectionHeader(title: '프로필 정보'),
+        const SectionHeader(title: '기본 건강 정보'),
         AppCard(
           child: Column(
             children: [
@@ -143,6 +147,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               TextField(
+                controller: _ageController,
+                keyboardType: TextInputType.number,
+                decoration:
+                    const InputDecoration(labelText: '나이', suffixText: '세'),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextField(
                 controller: _targetWeightController,
                 keyboardType: TextInputType.number,
                 decoration:
@@ -157,6 +169,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text('성별', style: AppTextStyles.caption),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -171,14 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onSelected: (_) => setState(() => _gender = entry.key),
                   );
                 }).toList(),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _pickBirthDate,
-                icon: const Icon(Icons.cake_outlined),
-                label: Text(_birthDate == null
-                    ? '생년월일 선택'
-                    : '${_birthDate!.year}-${_birthDate!.month}-${_birthDate!.day} · 만 $age세'),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -196,6 +202,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     setState(() => _activityLevel = value ?? 'light'),
               ),
               const SizedBox(height: 12),
+              const Text('목표', style: AppTextStyles.caption),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -246,7 +254,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.w900)),
                     const SizedBox(height: 4),
                     Text(
-                        'BMR ${current.bmr.round()} · TDEE ${current.tdee.round()} 기반 추정',
+                        '나이 ${age > 0 ? '$age세' : '미입력'} · BMR ${current.bmr.round()} · TDEE ${current.tdee.round()} 기반 추정',
                         style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.76),
                             fontWeight: FontWeight.w700)),
@@ -307,6 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       nickname: _nicknameController.text.trim(),
       gender: _gender,
       birthDate: _birthDate,
+      ageYears: int.tryParse(_ageController.text.trim()),
       heightCm: double.tryParse(_heightController.text.trim()) ?? 0,
       weightKg: double.tryParse(_weightController.text.trim()) ?? 0,
       targetWeightKg: double.tryParse(_targetWeightController.text.trim()) ?? 0,
@@ -320,18 +329,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _pickBirthDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _birthDate ?? DateTime(1995),
-      firstDate: DateTime(1940),
-      lastDate: DateTime.now(),
-    );
-    if (picked != null) {
-      setState(() => _birthDate = picked);
-    }
-  }
-
   Future<void> _pickSleepTime() async {
     final picked =
         await showTimePicker(context: context, initialTime: _sleepTime);
@@ -342,9 +339,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _save() async {
     final profile = _draftProfile().recalculated();
-    if (profile.heightCm <= 0 || profile.weightKg <= 0) {
+    final validationMessage = _validateProfile(profile);
+    if (validationMessage != null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('키와 몸무게를 입력해 주세요.')));
+          .showSnackBar(SnackBar(content: Text(validationMessage)));
       return;
     }
     await AppScope.of(context).saveHealthProfile(profile);
@@ -352,6 +350,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('건강 정보가 저장되었습니다.')));
     }
+  }
+
+  String? _validateProfile(HealthProfile profile) {
+    if (profile.heightCm < 50 || profile.heightCm > 250) {
+      return '키는 50~250cm 범위로 입력해 주세요.';
+    }
+    if (profile.weightKg < 20 || profile.weightKg > 300) {
+      return '현재 몸무게는 20~300kg 범위로 입력해 주세요.';
+    }
+    if (profile.targetWeightKg < 20 || profile.targetWeightKg > 300) {
+      return '목표 몸무게는 20~300kg 범위로 입력해 주세요.';
+    }
+    final age = profile.effectiveAgeYears;
+    if (age < 10 || age > 100) {
+      return '나이는 10~100세 범위로 입력해 주세요.';
+    }
+    return null;
   }
 
   TimeOfDay _parseTime(String value) {
