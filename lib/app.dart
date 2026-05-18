@@ -212,8 +212,8 @@ class TodayMealController extends ChangeNotifier {
       weightRecords: await weightRepository.getAll(),
       todayAiPlan: await aiMealCoachCacheRepository.getTodayPlan(todayDateKey),
       todayAiPlanDateKey: todayDateKey,
-      aiImprovementReport: await aiMealCoachCacheRepository
-          .getImprovementReport(todayDateKey),
+      aiImprovementReport:
+          await aiMealCoachCacheRepository.getImprovementReport(todayDateKey),
       aiImprovementReportDateKey: todayDateKey,
     );
   }
@@ -230,6 +230,23 @@ class TodayMealController extends ChangeNotifier {
 
   WeightRecord? get latestWeightRecord =>
       weightRecords.isEmpty ? null : weightRecords.last;
+
+  double? get startingWeightKg {
+    if (healthProfile.startingWeightKg > 0) {
+      return healthProfile.startingWeightKg;
+    }
+    final sortedLogs = [...weightLogs]
+      ..sort((a, b) => a.loggedAt.compareTo(b.loggedAt));
+    if (sortedLogs.isNotEmpty && sortedLogs.first.weightKg > 0) {
+      return sortedLogs.first.weightKg;
+    }
+    final sortedRecords = [...weightRecords]
+      ..sort((a, b) => a.date.compareTo(b.date));
+    if (sortedRecords.isNotEmpty && sortedRecords.first.weightKg > 0) {
+      return sortedRecords.first.weightKg;
+    }
+    return healthProfile.weightKg > 0 ? healthProfile.weightKg : null;
+  }
 
   double? get latestWeightKg {
     final latest = latestWeightRecord?.weightKg;
@@ -259,9 +276,9 @@ class TodayMealController extends ChangeNotifier {
   }
 
   List<WeightRecord> get recentWeightRecords7Days => _weightRecordsBetween(
-    DateTime.now().subtract(const Duration(days: 6)),
-    DateTime.now(),
-  );
+        DateTime.now().subtract(const Duration(days: 6)),
+        DateTime.now(),
+      );
 
   AiTodayPlanResult? get cachedTodayAiPlan {
     final dateKey = AppDateUtils.dateKey(DateTime.now());
@@ -323,7 +340,11 @@ class TodayMealController extends ChangeNotifier {
 
   Future<void> saveHealthProfile(HealthProfile nextHealthProfile) async {
     final previousWeight = healthProfile.weightKg;
-    healthProfile = nextHealthProfile.recalculated();
+    final nextStartingWeight =
+        nextHealthProfile.weightKg > 0 ? nextHealthProfile.weightKg : 0.0;
+    healthProfile = nextHealthProfile
+        .copyWith(startingWeightKg: nextStartingWeight)
+        .recalculated();
     profile = UserProfile(
       nickname: healthProfile.nickname,
       targetKcal: healthProfile.targetKcal,
@@ -356,10 +377,16 @@ class TodayMealController extends ChangeNotifier {
       );
     }
     final previousWeight = healthProfile.weightKg;
+    final baselineWeight = startingWeightKg;
     await weightRepository.saveToday(weightKg, memo: memo);
     weightRecords = await weightRepository.getAll();
 
-    healthProfile = healthProfile.copyWith(weightKg: weightKg).recalculated();
+    healthProfile = healthProfile
+        .copyWith(
+          startingWeightKg: baselineWeight,
+          weightKg: weightKg,
+        )
+        .recalculated();
     profile = UserProfile(
       nickname: healthProfile.nickname,
       targetKcal: healthProfile.targetKcal,
@@ -382,7 +409,10 @@ class TodayMealController extends ChangeNotifier {
     final latest = latestWeightRecord;
     if (latest != null) {
       healthProfile = healthProfile
-          .copyWith(weightKg: latest.weightKg)
+          .copyWith(
+            weightKg: latest.weightKg,
+            startingWeightKg: startingWeightKg,
+          )
           .recalculated();
       profile = UserProfile(
         nickname: healthProfile.nickname,
@@ -403,8 +433,7 @@ class TodayMealController extends ChangeNotifier {
   }) async {
     final dateKey = AppDateUtils.dateKey(DateTime.now());
     if (!forceRefresh) {
-      final cached =
-          cachedTodayAiPlan ??
+      final cached = cachedTodayAiPlan ??
           await aiMealCoachCacheRepository.getTodayPlan(dateKey);
       if (cached != null) {
         todayAiPlan = cached;
@@ -457,8 +486,7 @@ class TodayMealController extends ChangeNotifier {
   }) async {
     final dateKey = AppDateUtils.dateKey(DateTime.now());
     if (!forceRefresh) {
-      final cached =
-          cachedAiImprovementReport ??
+      final cached = cachedAiImprovementReport ??
           await aiMealCoachCacheRepository.getImprovementReport(dateKey);
       if (cached != null) {
         aiImprovementReport = cached;
@@ -531,9 +559,8 @@ class TodayMealController extends ChangeNotifier {
       'gender': healthProfile.gender,
       'bmr': healthProfile.bmr > 0 ? healthProfile.bmr : null,
       'tdee': healthProfile.tdee > 0 ? healthProfile.tdee : null,
-      'targetKcal': healthProfile.targetKcal > 0
-          ? healthProfile.targetKcal
-          : null,
+      'targetKcal':
+          healthProfile.targetKcal > 0 ? healthProfile.targetKcal : null,
     };
   }
 
@@ -716,9 +743,8 @@ class _AppShellState extends State<AppShell> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 600;
-              final frameWidth = isWide
-                  ? 430.0
-                  : constraints.maxWidth.clamp(0.0, 480.0);
+              final frameWidth =
+                  isWide ? 430.0 : constraints.maxWidth.clamp(0.0, 480.0);
               return Center(
                 child: Container(
                   width: frameWidth,

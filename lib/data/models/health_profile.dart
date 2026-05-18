@@ -17,6 +17,7 @@ class HealthProfile {
     required this.bmi,
     this.birthDate,
     this.ageYears,
+    this.startingWeightKg = 0,
   });
 
   final String nickname;
@@ -24,6 +25,7 @@ class HealthProfile {
   final DateTime? birthDate;
   final int? ageYears;
   final double heightCm;
+  final double startingWeightKg;
   final double weightKg;
   final double targetWeightKg;
   final String activityLevel;
@@ -39,6 +41,7 @@ class HealthProfile {
       nickname: '',
       gender: 'male',
       heightCm: 170,
+      startingWeightKg: 70,
       weightKg: 70,
       targetWeightKg: 68,
       activityLevel: 'light',
@@ -71,6 +74,13 @@ class HealthProfile {
         '23:30';
     final ageRaw = json['ageYears'] ?? json['age_years'] ?? json['age'];
     final parsedAge = ageRaw is num ? ageRaw.toInt() : int.tryParse('$ageRaw');
+    final startingWeightKg = toDouble(
+      json['startingWeightKg'] ??
+          json['starting_weight_kg'] ??
+          json['initialWeightKg'] ??
+          json['initial_weight_kg'],
+      0,
+    );
 
     return HealthProfile(
       nickname: json['nickname'] as String? ?? '',
@@ -82,6 +92,7 @@ class HealthProfile {
           ? parsedAge.clamp(0, 120).toInt()
           : null,
       heightCm: toDouble(json['heightCm'] ?? json['height_cm'], 170),
+      startingWeightKg: startingWeightKg,
       weightKg: toDouble(json['weightKg'] ?? json['weight_kg'], 70),
       targetWeightKg:
           toDouble(json['targetWeightKg'] ?? json['target_weight_kg'], 68),
@@ -130,6 +141,7 @@ class HealthProfile {
     DateTime? birthDate,
     int? ageYears,
     double? heightCm,
+    double? startingWeightKg,
     double? weightKg,
     double? targetWeightKg,
     String? activityLevel,
@@ -146,6 +158,7 @@ class HealthProfile {
       birthDate: birthDate ?? this.birthDate,
       ageYears: ageYears ?? this.ageYears,
       heightCm: heightCm ?? this.heightCm,
+      startingWeightKg: startingWeightKg ?? this.startingWeightKg,
       weightKg: weightKg ?? this.weightKg,
       targetWeightKg: targetWeightKg ?? this.targetWeightKg,
       activityLevel: activityLevel ?? this.activityLevel,
@@ -165,6 +178,7 @@ class HealthProfile {
       'birthDate': birthDate?.toIso8601String(),
       'ageYears': ageYears,
       'heightCm': heightCm,
+      'startingWeightKg': startingWeightKg,
       'weightKg': weightKg,
       'targetWeightKg': targetWeightKg,
       'activityLevel': activityLevel,

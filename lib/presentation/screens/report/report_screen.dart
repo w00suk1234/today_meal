@@ -127,6 +127,7 @@ class ReportScreen extends StatelessWidget {
         const SizedBox(height: 10),
         _WeightTrendCard(
           records: controller.weightRecords,
+          startingWeight: controller.startingWeightKg,
           latestFallbackWeight: latestWeight,
           targetWeight: health.targetWeightKg,
           latestBmi: latestBmi,
@@ -667,6 +668,7 @@ class _ActivityStat extends StatelessWidget {
 class _WeightTrendCard extends StatelessWidget {
   const _WeightTrendCard({
     required this.records,
+    required this.startingWeight,
     required this.latestFallbackWeight,
     required this.targetWeight,
     required this.latestBmi,
@@ -674,6 +676,7 @@ class _WeightTrendCard extends StatelessWidget {
   });
 
   final List<WeightRecord> records;
+  final double? startingWeight;
   final double? latestFallbackWeight;
   final double targetWeight;
   final double latestBmi;
@@ -682,13 +685,16 @@ class _WeightTrendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasRecords = records.isNotEmpty;
-    final firstWeight =
-        hasRecords ? records.first.weightKg : latestFallbackWeight;
+    final baselineWeight = startingWeight != null && startingWeight! > 0
+        ? startingWeight
+        : hasRecords
+            ? records.first.weightKg
+            : latestFallbackWeight;
     final latestWeight =
         hasRecords ? records.last.weightKg : latestFallbackWeight;
-    final totalDiff = firstWeight == null || latestWeight == null
+    final totalDiff = baselineWeight == null || latestWeight == null
         ? null
-        : latestWeight - firstWeight;
+        : latestWeight - baselineWeight;
     final targetDiff = latestWeight == null || targetWeight <= 0
         ? null
         : targetWeight - latestWeight;
@@ -718,9 +724,9 @@ class _WeightTrendCard extends StatelessWidget {
             )
           else ...[
             _TrendRow(
-              label: '시작 → 최신',
+              label: '설정 시작 → 최신',
               value:
-                  '${firstWeight!.toStringAsFixed(1)}kg → ${latestWeight!.toStringAsFixed(1)}kg',
+                  '${baselineWeight!.toStringAsFixed(1)}kg → ${latestWeight!.toStringAsFixed(1)}kg',
             ),
             const SizedBox(height: 8),
             _TrendRow(
