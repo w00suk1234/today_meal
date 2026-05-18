@@ -7,6 +7,7 @@ import 'core/utils/date_utils.dart';
 import 'core/utils/health_calculator.dart';
 import 'core/utils/nutrition_calculator.dart';
 import 'data/local/local_storage_service.dart';
+import 'data/models/ai_meal_coach_result.dart';
 import 'data/models/daily_summary.dart';
 import 'data/models/food_item.dart';
 import 'data/models/health_profile.dart';
@@ -14,6 +15,7 @@ import 'data/models/meal_record.dart';
 import 'data/models/user_profile.dart';
 import 'data/models/weight_log.dart';
 import 'data/models/weight_record.dart';
+import 'data/repositories/ai_meal_coach_cache_repository.dart';
 import 'data/repositories/food_repository.dart';
 import 'data/repositories/health_repository.dart';
 import 'data/repositories/meal_repository.dart';
@@ -25,6 +27,7 @@ import 'presentation/screens/records/records_screen.dart';
 import 'presentation/screens/report/report_screen.dart';
 import 'presentation/screens/settings/settings_screen.dart';
 import 'presentation/widgets/app_bottom_navigation.dart';
+import 'services/meal_coach_service.dart';
 import 'services/vision_food_service.dart';
 
 class TodayMealApp extends StatelessWidget {
@@ -72,8 +75,10 @@ class TodayMealApp extends StatelessWidget {
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
             fillColor: Colors.white,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 15,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
               borderSide: const BorderSide(color: AppColors.border),
@@ -84,8 +89,10 @@ class TodayMealApp extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide:
-                  const BorderSide(color: AppColors.primary, width: 1.4),
+              borderSide: const BorderSide(
+                color: AppColors.primary,
+                width: 1.4,
+              ),
             ),
           ),
           chipTheme: ChipThemeData(
@@ -94,7 +101,8 @@ class TodayMealApp extends StatelessWidget {
             checkmarkColor: AppColors.primary,
             side: const BorderSide(color: AppColors.border),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(999)),
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
           iconButtonTheme: IconButtonThemeData(
             style: ButtonStyle(
@@ -133,13 +141,19 @@ class TodayMealController extends ChangeNotifier {
     required this.userRepository,
     required this.healthRepository,
     required this.weightRepository,
+    required this.aiMealCoachCacheRepository,
     required this.visionFoodService,
+    required this.mealCoachService,
     required this.foods,
     required this.records,
     required this.profile,
     required this.healthProfile,
     required this.weightLogs,
     required this.weightRecords,
+    this.todayAiPlan,
+    this.todayAiPlanDateKey,
+    this.aiImprovementReport,
+    this.aiImprovementReportDateKey,
   });
 
   final FoodRepository foodRepository;
@@ -147,13 +161,23 @@ class TodayMealController extends ChangeNotifier {
   final UserRepository userRepository;
   final HealthRepository healthRepository;
   final WeightRepository weightRepository;
+  final AiMealCoachCacheRepository aiMealCoachCacheRepository;
   final VisionFoodService visionFoodService;
+  final MealCoachService mealCoachService;
   final List<FoodItem> foods;
   List<MealRecord> records;
   UserProfile profile;
   HealthProfile healthProfile;
   List<WeightLog> weightLogs;
   List<WeightRecord> weightRecords;
+  AiTodayPlanResult? todayAiPlan;
+  String? todayAiPlanDateKey;
+  AiImprovementReportResult? aiImprovementReport;
+  String? aiImprovementReportDateKey;
+  bool isGeneratingTodayAiPlan = false;
+  bool isGeneratingAiImprovementReport = false;
+  String? todayAiPlanError;
+  String? aiImprovementReportError;
 
   static Future<TodayMealController> create() async {
     final storage = await LocalStorageService.create();
@@ -162,23 +186,35 @@ class TodayMealController extends ChangeNotifier {
     final userRepository = UserRepository(storage);
     final healthRepository = HealthRepository(storage);
     final weightRepository = WeightRepository(storage);
+    final aiMealCoachCacheRepository = AiMealCoachCacheRepository(storage);
     final healthProfile = await healthRepository.loadProfile();
     final visionFoodService = AppConfig.hasUsableAiApiBaseUrl
         ? FallbackVisionFoodService(primary: RemoteVisionFoodService())
         : const MockVisionFoodService();
+    final mealCoachService = AppConfig.hasUsableAiApiBaseUrl
+        ? RemoteMealCoachService()
+        : const FallbackMealCoachService();
+    final todayDateKey = AppDateUtils.dateKey(DateTime.now());
     return TodayMealController(
       foodRepository: foodRepository,
       mealRepository: mealRepository,
       userRepository: userRepository,
       healthRepository: healthRepository,
       weightRepository: weightRepository,
+      aiMealCoachCacheRepository: aiMealCoachCacheRepository,
       visionFoodService: visionFoodService,
+      mealCoachService: mealCoachService,
       foods: await foodRepository.loadFoods(),
       records: await mealRepository.loadRecords(),
       profile: await userRepository.loadProfile(),
       healthProfile: healthProfile,
       weightLogs: await healthRepository.loadWeightLogs(),
       weightRecords: await weightRepository.getAll(),
+      todayAiPlan: await aiMealCoachCacheRepository.getTodayPlan(todayDateKey),
+      todayAiPlanDateKey: todayDateKey,
+      aiImprovementReport: await aiMealCoachCacheRepository
+          .getImprovementReport(todayDateKey),
+      aiImprovementReportDateKey: todayDateKey,
     );
   }
 
@@ -223,20 +259,35 @@ class TodayMealController extends ChangeNotifier {
   }
 
   List<WeightRecord> get recentWeightRecords7Days => _weightRecordsBetween(
-        DateTime.now().subtract(const Duration(days: 6)),
-        DateTime.now(),
-      );
+    DateTime.now().subtract(const Duration(days: 6)),
+    DateTime.now(),
+  );
+
+  AiTodayPlanResult? get cachedTodayAiPlan {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    return todayAiPlanDateKey == dateKey ? todayAiPlan : null;
+  }
+
+  AiImprovementReportResult? get cachedAiImprovementReport {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    return aiImprovementReportDateKey == dateKey ? aiImprovementReport : null;
+  }
 
   Future<void> addRecord(MealRecord record) async {
     records = [...records, record];
     await mealRepository.saveRecords(records);
-    await mealRepository
-        .saveMealGroupToSupabase(records: [record], aiDetected: false);
+    await mealRepository.saveMealGroupToSupabase(
+      records: [record],
+      aiDetected: false,
+    );
     notifyListeners();
   }
 
-  Future<void> addRecords(List<MealRecord> nextRecords,
-      {required bool aiDetected, String? aiConfidence}) async {
+  Future<void> addRecords(
+    List<MealRecord> nextRecords, {
+    required bool aiDetected,
+    String? aiConfidence,
+  }) async {
     if (nextRecords.isEmpty) {
       return;
     }
@@ -272,8 +323,10 @@ class TodayMealController extends ChangeNotifier {
       weightKg: healthProfile.weightKg,
       goalType: healthProfile.goalType,
     );
-    await healthRepository.saveProfile(healthProfile,
-        previousWeightKg: previousWeight);
+    await healthRepository.saveProfile(
+      healthProfile,
+      previousWeightKg: previousWeight,
+    );
     await userRepository.saveProfile(profile);
     if ((previousWeight - healthProfile.weightKg).abs() >= 0.1) {
       await weightRepository.saveToday(
@@ -288,7 +341,11 @@ class TodayMealController extends ChangeNotifier {
 
   Future<void> saveTodayWeightRecord(double weightKg, {String? memo}) async {
     if (weightKg <= 0) {
-      throw ArgumentError.value(weightKg, 'weightKg', 'Weight must be positive.');
+      throw ArgumentError.value(
+        weightKg,
+        'weightKg',
+        'Weight must be positive.',
+      );
     }
     final previousWeight = healthProfile.weightKg;
     await weightRepository.saveToday(weightKg, memo: memo);
@@ -316,8 +373,9 @@ class TodayMealController extends ChangeNotifier {
     weightRecords = await weightRepository.getAll();
     final latest = latestWeightRecord;
     if (latest != null) {
-      healthProfile =
-          healthProfile.copyWith(weightKg: latest.weightKg).recalculated();
+      healthProfile = healthProfile
+          .copyWith(weightKg: latest.weightKg)
+          .recalculated();
       profile = UserProfile(
         nickname: healthProfile.nickname,
         targetKcal: healthProfile.targetKcal,
@@ -332,6 +390,114 @@ class TodayMealController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<AiTodayPlanResult> generateTodayAiPlan({
+    bool forceRefresh = false,
+  }) async {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    if (!forceRefresh) {
+      final cached =
+          cachedTodayAiPlan ??
+          await aiMealCoachCacheRepository.getTodayPlan(dateKey);
+      if (cached != null) {
+        todayAiPlan = cached;
+        todayAiPlanDateKey = dateKey;
+        todayAiPlanError = null;
+        notifyListeners();
+        return cached;
+      }
+    }
+
+    isGeneratingTodayAiPlan = true;
+    todayAiPlanError = null;
+    notifyListeners();
+
+    try {
+      final result = await mealCoachService.generateTodayPlan(
+        date: dateKey,
+        todaySummary: _buildTodayCoachSummary(todaySummary),
+        recentSummary: _buildRecentCoachSummary(),
+        healthContext: _buildCoachHealthContext(),
+      );
+      final next = result.copyWith(
+        createdAt: result.createdAt ?? DateTime.now(),
+      );
+      todayAiPlan = next;
+      todayAiPlanDateKey = dateKey;
+      if (next.isFallback) {
+        todayAiPlanError = 'AI 플랜을 불러오지 못해 기본 제안을 표시합니다.';
+      } else {
+        await aiMealCoachCacheRepository.saveTodayPlan(dateKey, next);
+      }
+      return next;
+    } catch (_) {
+      final fallback = AiTodayPlanResult.fallback().copyWith(
+        isFallback: true,
+        createdAt: DateTime.now(),
+      );
+      todayAiPlan = fallback;
+      todayAiPlanDateKey = dateKey;
+      todayAiPlanError = 'AI 플랜을 불러오지 못해 기본 제안을 표시합니다.';
+      return fallback;
+    } finally {
+      isGeneratingTodayAiPlan = false;
+      notifyListeners();
+    }
+  }
+
+  Future<AiImprovementReportResult> generateAiImprovementReport({
+    bool forceRefresh = false,
+  }) async {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    if (!forceRefresh) {
+      final cached =
+          cachedAiImprovementReport ??
+          await aiMealCoachCacheRepository.getImprovementReport(dateKey);
+      if (cached != null) {
+        aiImprovementReport = cached;
+        aiImprovementReportDateKey = dateKey;
+        aiImprovementReportError = null;
+        notifyListeners();
+        return cached;
+      }
+    }
+
+    isGeneratingAiImprovementReport = true;
+    aiImprovementReportError = null;
+    notifyListeners();
+
+    try {
+      final result = await mealCoachService.generateImprovementReport(
+        date: dateKey,
+        todaySummary: _buildTodayCoachSummary(todaySummary),
+        recentSummary: _buildRecentCoachSummary(),
+        healthContext: _buildCoachHealthContext(),
+      );
+      final next = result.copyWith(
+        createdAt: result.createdAt ?? DateTime.now(),
+      );
+      aiImprovementReport = next;
+      aiImprovementReportDateKey = dateKey;
+      if (next.isFallback) {
+        aiImprovementReportError = 'AI 리포트를 불러오지 못해 기본 제안을 표시합니다.';
+      } else {
+        await aiMealCoachCacheRepository.saveImprovementReport(dateKey, next);
+      }
+      return next;
+    } catch (_) {
+      final fallback = AiImprovementReportResult.fallback().copyWith(
+        isFallback: true,
+        createdAt: DateTime.now(),
+      );
+      aiImprovementReport = fallback;
+      aiImprovementReportDateKey = dateKey;
+      aiImprovementReportError = 'AI 리포트를 불러오지 못해 기본 제안을 표시합니다.';
+      return fallback;
+    } finally {
+      isGeneratingAiImprovementReport = false;
+      notifyListeners();
+    }
+  }
+
   Map<String, Object?> buildAiHealthContext() {
     final latestWeight = latestWeightKg;
     final bmi = latestWeight == null || healthProfile.heightCm <= 0
@@ -343,8 +509,9 @@ class TodayMealController extends ChangeNotifier {
     return {
       'heightCm': healthProfile.heightCm > 0 ? healthProfile.heightCm : null,
       'latestWeightKg': latestWeight,
-      'targetWeightKg':
-          healthProfile.targetWeightKg > 0 ? healthProfile.targetWeightKg : null,
+      'targetWeightKg': healthProfile.targetWeightKg > 0
+          ? healthProfile.targetWeightKg
+          : null,
       'bmi': bmi,
       'bmiLabel': bmi == null ? null : HealthCalculator.getBmiCategory(bmi),
       'weightTrend7Days': weightTrend7Days,
@@ -356,7 +523,72 @@ class TodayMealController extends ChangeNotifier {
       'gender': healthProfile.gender,
       'bmr': healthProfile.bmr > 0 ? healthProfile.bmr : null,
       'tdee': healthProfile.tdee > 0 ? healthProfile.tdee : null,
-      'targetKcal': healthProfile.targetKcal > 0 ? healthProfile.targetKcal : null,
+      'targetKcal': healthProfile.targetKcal > 0
+          ? healthProfile.targetKcal
+          : null,
+    };
+  }
+
+  Map<String, Object?> _buildCoachHealthContext() {
+    return {
+      ...buildAiHealthContext(),
+      'goalType': _goalTypeLabel(healthProfile.goalType),
+      'activityLevel': _activityLevelLabel(healthProfile.activityLevel),
+    };
+  }
+
+  Map<String, Object?> _buildTodayCoachSummary(DailySummary summary) {
+    final mealTypes = summary.records.map((record) => record.mealType).toSet();
+    return {
+      'totalKcal': summary.totalKcal.round(),
+      'targetKcal': healthProfile.targetKcal.round(),
+      'proteinG': summary.totalProtein.round(),
+      'carbsG': summary.totalCarbs.round(),
+      'fatG': summary.totalFat.round(),
+      'mealCount': summary.records.length,
+      'recordedMealTypes': mealTypes.toList(),
+    };
+  }
+
+  Map<String, Object?> _buildRecentCoachSummary() {
+    final now = DateTime.now();
+    final summaries = [
+      for (var i = 6; i >= 0; i--)
+        summaryFor(AppDateUtils.dateKey(now.subtract(Duration(days: i)))),
+    ];
+    final recorded = summaries.where((summary) => summary.records.isNotEmpty);
+    final denominator = recorded.isEmpty ? summaries.length : recorded.length;
+    double average(double Function(DailySummary summary) value) {
+      final source = recorded.isEmpty ? summaries : recorded;
+      return source.fold<double>(0, (sum, item) => sum + value(item)) /
+          denominator;
+    }
+
+    return {
+      'days': 7,
+      'avgKcal': average((summary) => summary.totalKcal).round(),
+      'avgProteinG': average((summary) => summary.totalProtein).round(),
+      'avgCarbsG': average((summary) => summary.totalCarbs).round(),
+      'avgFatG': average((summary) => summary.totalFat).round(),
+      'recordedDays': recorded.length,
+    };
+  }
+
+  String _goalTypeLabel(String value) {
+    return switch (value) {
+      'loss' => '감량',
+      'gain' => '증량',
+      _ => '유지',
+    };
+  }
+
+  String _activityLevelLabel(String value) {
+    return switch (value) {
+      'sedentary' => '거의 활동 없음',
+      'moderate' => '보통',
+      'active' => '높음',
+      'veryActive' => '매우 높음',
+      _ => '가벼움',
     };
   }
 
@@ -364,7 +596,11 @@ class TodayMealController extends ChangeNotifier {
     final normalizedStart = DateTime(start.year, start.month, start.day);
     final normalizedEnd = DateTime(end.year, end.month, end.day);
     return weightRecords.where((record) {
-      final date = DateTime(record.date.year, record.date.month, record.date.day);
+      final date = DateTime(
+        record.date.year,
+        record.date.month,
+        record.date.day,
+      );
       return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
     }).toList();
   }
@@ -472,8 +708,9 @@ class _AppShellState extends State<AppShell> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 600;
-              final frameWidth =
-                  isWide ? 430.0 : constraints.maxWidth.clamp(0.0, 480.0);
+              final frameWidth = isWide
+                  ? 430.0
+                  : constraints.maxWidth.clamp(0.0, 480.0);
               return Center(
                 child: Container(
                   width: frameWidth,
@@ -485,9 +722,10 @@ class _AppShellState extends State<AppShell> {
                     boxShadow: isWide
                         ? const [
                             BoxShadow(
-                                color: AppColors.shadow,
-                                blurRadius: 30,
-                                offset: Offset(0, 14)),
+                              color: AppColors.shadow,
+                              blurRadius: 30,
+                              offset: Offset(0, 14),
+                            ),
                           ]
                         : null,
                   ),
@@ -503,25 +741,30 @@ class _AppShellState extends State<AppShell> {
                         onSelected: _handleTabSelected,
                         items: const [
                           AppBottomNavigationItem(
-                              icon: Icons.home_outlined,
-                              activeIcon: Icons.home_rounded,
-                              label: '홈'),
+                            icon: Icons.home_outlined,
+                            activeIcon: Icons.home_rounded,
+                            label: '홈',
+                          ),
                           AppBottomNavigationItem(
-                              icon: Icons.history_rounded,
-                              activeIcon: Icons.manage_search_rounded,
-                              label: '기록'),
+                            icon: Icons.history_rounded,
+                            activeIcon: Icons.manage_search_rounded,
+                            label: '기록',
+                          ),
                           AppBottomNavigationItem(
-                              icon: Icons.add_circle_outline,
-                              activeIcon: Icons.add_circle,
-                              label: '추가'),
+                            icon: Icons.add_circle_outline,
+                            activeIcon: Icons.add_circle,
+                            label: '추가',
+                          ),
                           AppBottomNavigationItem(
-                              icon: Icons.bar_chart_rounded,
-                              activeIcon: Icons.insights_rounded,
-                              label: '요약'),
+                            icon: Icons.bar_chart_rounded,
+                            activeIcon: Icons.insights_rounded,
+                            label: '요약',
+                          ),
                           AppBottomNavigationItem(
-                              icon: Icons.settings_outlined,
-                              activeIcon: Icons.settings,
-                              label: '설정'),
+                            icon: Icons.settings_outlined,
+                            activeIcon: Icons.settings,
+                            label: '설정',
+                          ),
                         ],
                       ),
                     ],

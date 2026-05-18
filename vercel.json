@@ -1,7 +1,7 @@
 {
   "buildCommand": "bash scripts/vercel_build.sh",
   "outputDirectory": "build/web",
-  "installCommand": "echo \"Flutter dependencies are installed during the Vercel build step.\"",
+  "installCommand": "npm install --omit=dev",
   "rewrites": [
     {"source": "/:path((?!api/).*)", "destination": "/index.html"}
   ]

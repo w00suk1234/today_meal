@@ -14,6 +14,7 @@ import '../../../data/models/weight_record.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_scaffold.dart';
+import '../../widgets/ai_improvement_report_card.dart';
 import '../../widgets/metric_card.dart';
 import '../../widgets/section_header.dart';
 import 'widgets/report_message_card.dart';
@@ -44,8 +45,9 @@ class ReportScreen extends StatelessWidget {
     final latestWeight = controller.latestWeightKg;
     final latestBmi = controller.latestBmi;
     final hasTodayRecords = summary.records.isNotEmpty;
-    final hasWeeklyRecords =
-        weekly.any((summary) => summary.records.isNotEmpty);
+    final hasWeeklyRecords = weekly.any(
+      (summary) => summary.records.isNotEmpty,
+    );
 
     return AppScaffold(
       controller: scrollController,
@@ -56,9 +58,19 @@ class ReportScreen extends StatelessWidget {
           icon: Icons.insights_rounded,
         ),
         _DailyReportHero(
-            summary: summary,
-            targetKcal: controller.profile.targetKcal,
-            hasRecords: hasTodayRecords),
+          summary: summary,
+          targetKcal: controller.profile.targetKcal,
+          hasRecords: hasTodayRecords,
+        ),
+        const SectionHeader(title: 'AI 개선 리포트'),
+        AiImprovementReportCard(
+          result: controller.cachedAiImprovementReport,
+          loading: controller.isGeneratingAiImprovementReport,
+          errorMessage: controller.aiImprovementReportError,
+          onGenerate: () => controller.generateAiImprovementReport(),
+          onRegenerate: () =>
+              controller.generateAiImprovementReport(forceRefresh: true),
+        ),
         const SectionHeader(title: '오늘 식단 피드백'),
         if (hasTodayRecords)
           for (final message in messages.take(3))
@@ -97,8 +109,7 @@ class ReportScreen extends StatelessWidget {
             Expanded(
               child: MetricCard(
                 title: 'BMI',
-                value:
-                    latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
+                value: latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
                 subtitle: '${HealthCalculator.getBmiCategory(latestBmi)} · 참고용',
                 icon: Icons.favorite_outline,
                 color: AppColors.coral,
@@ -129,8 +140,9 @@ class ReportScreen extends StatelessWidget {
     final now = DateTime.now();
     return [
       for (var i = 6; i >= 0; i--)
-        controller
-            .summaryFor(AppDateUtils.dateKey(now.subtract(Duration(days: i)))),
+        controller.summaryFor(
+          AppDateUtils.dateKey(now.subtract(Duration(days: i))),
+        ),
     ];
   }
 
@@ -138,8 +150,9 @@ class ReportScreen extends StatelessWidget {
     final now = DateTime.now();
     var streak = 0;
     for (var i = 0; i < 60; i++) {
-      final summary = controller
-          .summaryFor(AppDateUtils.dateKey(now.subtract(Duration(days: i))));
+      final summary = controller.summaryFor(
+        AppDateUtils.dateKey(now.subtract(Duration(days: i))),
+      );
       if (summary.records.isEmpty) {
         break;
       }
@@ -163,10 +176,13 @@ class _DailyReportHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = NutritionCalculator.calculateTargetPercent(
-        summary.totalKcal, targetKcal);
+      summary.totalKcal,
+      targetKcal,
+    );
     return AppCard(
-      color:
-          hasRecords ? AppColors.primaryDark : AppColors.lightGreenBackground,
+      color: hasRecords
+          ? AppColors.primaryDark
+          : AppColors.lightGreenBackground,
       borderColor: hasRecords ? AppColors.primaryDark : AppColors.border,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,35 +193,43 @@ class _DailyReportHero extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                    color: hasRecords
-                        ? Colors.white.withValues(alpha: 0.15)
-                        : AppColors.cardWhite,
-                    shape: BoxShape.circle),
-                child: Icon(Icons.auto_awesome,
-                    color: hasRecords ? Colors.white : AppColors.primary),
+                  color: hasRecords
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : AppColors.cardWhite,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.auto_awesome,
+                  color: hasRecords ? Colors.white : AppColors.primary,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(hasRecords ? '오늘 식단 요약' : '아직 분석할 식단 기록이 없습니다',
-                        style: TextStyle(
-                            color: hasRecords
-                                ? Colors.white
-                                : AppColors.textPrimary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 17)),
+                    Text(
+                      hasRecords ? '오늘 식단 요약' : '아직 분석할 식단 기록이 없습니다',
+                      style: TextStyle(
+                        color: hasRecords
+                            ? Colors.white
+                            : AppColors.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 17,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                        hasRecords
-                            ? '목표 대비 ${percent.round()}% · 식사 기록 ${summary.records.length}개'
-                            : '식사 기록이 쌓이면 오늘의 섭취 패턴을 요약해드려요.',
-                        style: TextStyle(
-                            color: hasRecords
-                                ? Colors.white.withValues(alpha: 0.78)
-                                : AppColors.textSecondary,
-                            fontWeight: FontWeight.w700)),
+                      hasRecords
+                          ? '목표 대비 ${percent.round()}% · 식사 기록 ${summary.records.length}개'
+                          : '식사 기록이 쌓이면 오늘의 섭취 패턴을 요약해드려요.',
+                      style: TextStyle(
+                        color: hasRecords
+                            ? Colors.white.withValues(alpha: 0.78)
+                            : AppColors.textSecondary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -216,18 +240,24 @@ class _DailyReportHero extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(summary.totalKcal.round().toString(),
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900)),
+                Text(
+                  summary.totalKcal.round().toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
                 const SizedBox(width: 4),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('kcal',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.75),
-                          fontWeight: FontWeight.w800)),
+                  child: Text(
+                    'kcal',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.75),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -239,11 +269,12 @@ class _DailyReportHero extends StatelessWidget {
 }
 
 class _WeeklyCaloriesChart extends StatelessWidget {
-  const _WeeklyCaloriesChart(
-      {required this.summaries,
-      required this.targetKcal,
-      required this.hasData,
-      required this.onAddMeal});
+  const _WeeklyCaloriesChart({
+    required this.summaries,
+    required this.targetKcal,
+    required this.hasData,
+    required this.onAddMeal,
+  });
 
   final List<DailySummary> summaries;
   final double targetKcal;
@@ -253,10 +284,9 @@ class _WeeklyCaloriesChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxValue = math.max(
-        targetKcal,
-        summaries
-            .map((summary) => summary.totalKcal)
-            .fold<double>(0, math.max));
+      targetKcal,
+      summaries.map((summary) => summary.totalKcal).fold<double>(0, math.max),
+    );
     const labels = ['월', '화', '수', '목', '금', '토', '일'];
     return AppCard(
       child: Column(
@@ -278,17 +308,20 @@ class _WeeklyCaloriesChart extends StatelessWidget {
                               alignment: Alignment.bottomCenter,
                               child: FractionallySizedBox(
                                 heightFactor: hasData
-                                    ? (summaries[i].totalKcal / maxValue)
-                                        .clamp(0.08, 1.0)
+                                    ? (summaries[i].totalKcal / maxValue).clamp(
+                                        0.08,
+                                        1.0,
+                                      )
                                     : (0.22 + i * 0.035).clamp(0.2, 0.48),
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: hasData
                                         ? (i == summaries.length - 1
-                                            ? AppColors.primary
-                                            : AppColors.primarySoft)
-                                        : AppColors.border
-                                            .withValues(alpha: 0.8),
+                                              ? AppColors.primary
+                                              : AppColors.primarySoft)
+                                        : AppColors.border.withValues(
+                                            alpha: 0.8,
+                                          ),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
@@ -296,9 +329,12 @@ class _WeeklyCaloriesChart extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(labels[i],
-                              style: AppTextStyles.caption
-                                  .copyWith(fontWeight: FontWeight.w800)),
+                          Text(
+                            labels[i],
+                            style: AppTextStyles.caption.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -308,8 +344,11 @@ class _WeeklyCaloriesChart extends StatelessWidget {
           ),
           if (!hasData) ...[
             const SizedBox(height: 14),
-            const Text('식사 기록이 쌓이면 주간 추이가 표시됩니다.',
-                textAlign: TextAlign.center, style: AppTextStyles.caption),
+            const Text(
+              '식사 기록이 쌓이면 주간 추이가 표시됩니다.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.caption,
+            ),
             const SizedBox(height: 12),
             SizedBox(
               width: 170,
@@ -353,11 +392,17 @@ class _NutritionBalanceCard extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(hasData ? summary.totalKcal.round().toString() : '대기',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 18)),
-                    Text(hasData ? 'kcal' : '기록 필요',
-                        style: AppTextStyles.caption),
+                    Text(
+                      hasData ? summary.totalKcal.round().toString() : '대기',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
+                    ),
+                    Text(
+                      hasData ? 'kcal' : '기록 필요',
+                      style: AppTextStyles.caption,
+                    ),
                   ],
                 ),
               ),
@@ -368,28 +413,32 @@ class _NutritionBalanceCard extends StatelessWidget {
             child: Column(
               children: [
                 _LegendRow(
-                    label: '탄수화물',
-                    value: summary.totalCarbs,
-                    color: hasData
-                        ? AppColors.macroCarb
-                        : AppColors.textSecondary),
+                  label: '탄수화물',
+                  value: summary.totalCarbs,
+                  color: hasData
+                      ? AppColors.macroCarb
+                      : AppColors.textSecondary,
+                ),
                 const SizedBox(height: 10),
                 _LegendRow(
-                    label: '단백질',
-                    value: summary.totalProtein,
-                    color: hasData
-                        ? AppColors.macroProtein
-                        : AppColors.textSecondary),
+                  label: '단백질',
+                  value: summary.totalProtein,
+                  color: hasData
+                      ? AppColors.macroProtein
+                      : AppColors.textSecondary,
+                ),
                 const SizedBox(height: 10),
                 _LegendRow(
-                    label: '지방',
-                    value: summary.totalFat,
-                    color:
-                        hasData ? AppColors.macroFat : AppColors.textSecondary),
+                  label: '지방',
+                  value: summary.totalFat,
+                  color: hasData ? AppColors.macroFat : AppColors.textSecondary,
+                ),
                 if (!hasData) ...[
                   const SizedBox(height: 12),
-                  const Text('식사 기록이 쌓이면 탄단지 균형이 표시됩니다.',
-                      style: AppTextStyles.caption),
+                  const Text(
+                    '식사 기록이 쌓이면 탄단지 균형이 표시됩니다.',
+                    style: AppTextStyles.caption,
+                  ),
                 ],
               ],
             ),
@@ -401,11 +450,12 @@ class _NutritionBalanceCard extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  const _RingPainter(
-      {required this.carb,
-      required this.protein,
-      required this.fat,
-      required this.muted});
+  const _RingPainter({
+    required this.carb,
+    required this.protein,
+    required this.fat,
+    required this.muted,
+  });
 
   final double carb;
   final double protein;
@@ -424,11 +474,11 @@ class _RingPainter extends CustomPainter {
       (value: carb, color: muted ? AppColors.border : AppColors.macroCarb),
       (
         value: protein,
-        color: muted ? AppColors.divider : AppColors.macroProtein
+        color: muted ? AppColors.divider : AppColors.macroProtein,
       ),
       (
         value: fat,
-        color: muted ? AppColors.lightGreenBackground : AppColors.macroFat
+        color: muted ? AppColors.lightGreenBackground : AppColors.macroFat,
       ),
     ]) {
       paint.color = segment.color;
@@ -448,8 +498,11 @@ class _RingPainter extends CustomPainter {
 }
 
 class _LegendRow extends StatelessWidget {
-  const _LegendRow(
-      {required this.label, required this.value, required this.color});
+  const _LegendRow({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   final String label;
   final double value;
@@ -460,13 +513,16 @@ class _LegendRow extends StatelessWidget {
     return Row(
       children: [
         Container(
-            width: 9,
-            height: 9,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 8),
         Expanded(child: Text(label, style: AppTextStyles.caption)),
-        Text('${value.toStringAsFixed(0)}g',
-            style: const TextStyle(fontWeight: FontWeight.w900)),
+        Text(
+          '${value.toStringAsFixed(0)}g',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
       ],
     );
   }
@@ -487,10 +543,14 @@ class _StreakCard extends StatelessWidget {
             width: 54,
             height: 54,
             decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(20)),
-            child: const Icon(Icons.local_fire_department_outlined,
-                color: AppColors.primary, size: 28),
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(
+              Icons.local_fire_department_outlined,
+              color: AppColors.primary,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -527,8 +587,12 @@ class _WeightTrendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasRecords = records.isNotEmpty;
-    final firstWeight = hasRecords ? records.first.weightKg : latestFallbackWeight;
-    final latestWeight = hasRecords ? records.last.weightKg : latestFallbackWeight;
+    final firstWeight = hasRecords
+        ? records.first.weightKg
+        : latestFallbackWeight;
+    final latestWeight = hasRecords
+        ? records.last.weightKg
+        : latestFallbackWeight;
     final totalDiff = firstWeight == null || latestWeight == null
         ? null
         : latestWeight - firstWeight;
@@ -578,8 +642,8 @@ class _WeightTrendCard extends StatelessWidget {
               value: targetDiff == null
                   ? '목표 체중 미입력'
                   : targetDiff.abs() < 0.1
-                      ? '목표 체중에 가까워요'
-                      : '목표 체중까지 ${targetDiff.abs().toStringAsFixed(1)}kg 남았어요',
+                  ? '목표 체중에 가까워요'
+                  : '목표 체중까지 ${targetDiff.abs().toStringAsFixed(1)}kg 남았어요',
             ),
             const SizedBox(height: 8),
             _TrendRow(
@@ -612,10 +676,7 @@ class _TrendRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(
-          width: 86,
-          child: Text(label, style: AppTextStyles.caption),
-        ),
+        SizedBox(width: 86, child: Text(label, style: AppTextStyles.caption)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

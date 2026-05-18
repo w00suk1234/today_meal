@@ -9,6 +9,7 @@ import '../../../core/utils/health_calculator.dart';
 import '../../../core/utils/meal_timing_analyzer.dart';
 import '../../../data/models/meal_record.dart';
 import '../../widgets/ai_suggestion_card.dart';
+import '../../widgets/ai_today_plan_card.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/meal_status_card.dart';
@@ -37,7 +38,9 @@ class HomeScreen extends StatelessWidget {
     final latestWeight = controller.latestWeightKg;
     final latestBmi = controller.latestBmi;
     final timingMessages = MealTimingAnalyzer.generateFeedback(
-        records: summary.records, sleepTime: health.sleepTime);
+      records: summary.records,
+      sleepTime: health.sleepTime,
+    );
     final timingMessage = summary.records.isEmpty
         ? '오늘은 아직 식사 기록이 없습니다. 규칙적인 식사 패턴을 기록해보세요.'
         : timingMessages.first;
@@ -61,13 +64,18 @@ class HomeScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.border),
             ),
-            child: const Icon(Icons.calendar_today_rounded,
-                color: AppColors.primary, size: 18),
+            child: const Icon(
+              Icons.calendar_today_rounded,
+              color: AppColors.primary,
+              size: 18,
+            ),
           ),
         ),
         DailySummaryCard(summary: summary, targetKcal: profile.targetKcal),
         const SectionHeader(
-            title: '영양 밸런스', subtitle: '오늘 기록된 탄단지 비율을 한눈에 확인해요'),
+          title: '영양 밸런스',
+          subtitle: '오늘 기록된 탄단지 비율을 한눈에 확인해요',
+        ),
         MacroSummaryCard(summary: summary, targetKcal: profile.targetKcal),
         const SizedBox(height: 4),
         const SectionHeader(title: '건강 지표'),
@@ -76,8 +84,7 @@ class HomeScreen extends StatelessWidget {
             Expanded(
               child: MetricCard(
                 title: 'BMI',
-                value:
-                    latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
+                value: latestBmi <= 0 ? '미입력' : latestBmi.toStringAsFixed(1),
                 subtitle: '${HealthCalculator.getBmiCategory(latestBmi)} · 참고용',
                 icon: Icons.monitor_heart_outlined,
                 color: AppColors.coral,
@@ -109,8 +116,11 @@ class HomeScreen extends StatelessWidget {
                       color: AppColors.orange.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(13),
                     ),
-                    child: const Icon(Icons.local_fire_department_outlined,
-                        color: AppColors.orange, size: 18),
+                    child: const Icon(
+                      Icons.local_fire_department_outlined,
+                      color: AppColors.orange,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -134,25 +144,38 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
+        const SectionHeader(title: 'AI 오늘의 플랜'),
+        AiTodayPlanCard(
+          result: controller.cachedTodayAiPlan,
+          loading: controller.isGeneratingTodayAiPlan,
+          errorMessage: controller.todayAiPlanError,
+          onGenerate: () => controller.generateTodayAiPlan(),
+          onRegenerate: () =>
+              controller.generateTodayAiPlan(forceRefresh: true),
+        ),
         const SectionHeader(title: '식사 기록 상태'),
         MealStatusCard(
           items: [
             MealStatusItem(
-                label: '아침',
-                done: _hasMeal(summary.records, 'breakfast'),
-                icon: Icons.wb_sunny_outlined),
+              label: '아침',
+              done: _hasMeal(summary.records, 'breakfast'),
+              icon: Icons.wb_sunny_outlined,
+            ),
             MealStatusItem(
-                label: '점심',
-                done: _hasMeal(summary.records, 'lunch'),
-                icon: Icons.restaurant_rounded),
+              label: '점심',
+              done: _hasMeal(summary.records, 'lunch'),
+              icon: Icons.restaurant_rounded,
+            ),
             MealStatusItem(
-                label: '저녁',
-                done: _hasMeal(summary.records, 'dinner'),
-                icon: Icons.nightlight_round),
+              label: '저녁',
+              done: _hasMeal(summary.records, 'dinner'),
+              icon: Icons.nightlight_round,
+            ),
             MealStatusItem(
-                label: '간식',
-                done: _hasMeal(summary.records, 'snack'),
-                icon: Icons.icecream_outlined),
+              label: '간식',
+              done: _hasMeal(summary.records, 'snack'),
+              icon: Icons.icecream_outlined,
+            ),
           ],
         ),
         const SectionHeader(title: '식사 시간 피드백'),
@@ -169,8 +192,11 @@ class HomeScreen extends StatelessWidget {
                   color: AppColors.orange.withValues(alpha: 0.14),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.tips_and_updates_outlined,
-                    color: AppColors.orange, size: 18),
+                child: const Icon(
+                  Icons.tips_and_updates_outlined,
+                  color: AppColors.orange,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(child: Text(timingMessage, style: AppTextStyles.body)),
@@ -211,8 +237,9 @@ class HomeScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
             Future<void> save() async {
-              final weight =
-                  double.tryParse(weightController.text.trim().replaceAll(',', '.'));
+              final weight = double.tryParse(
+                weightController.text.trim().replaceAll(',', '.'),
+              );
               if (weight == null || weight < 20 || weight > 300) {
                 ScaffoldMessenger.of(rootContext).showSnackBar(
                   const SnackBar(content: Text('몸무게는 20~300kg 범위로 입력해 주세요.')),
@@ -259,13 +286,16 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   const Text('오늘 몸무게 기록', style: AppTextStyles.section),
                   const SizedBox(height: 6),
-                  const Text('BMI와 변화 추이를 위한 참고용 기록입니다.',
-                      style: AppTextStyles.caption),
+                  const Text(
+                    'BMI와 변화 추이를 위한 참고용 기록입니다.',
+                    style: AppTextStyles.caption,
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: weightController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: '오늘 몸무게',
                       suffixText: 'kg',
