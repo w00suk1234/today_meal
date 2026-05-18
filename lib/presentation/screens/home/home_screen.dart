@@ -164,7 +164,7 @@ class HomeScreen extends StatelessWidget {
             MealStatusItem(
               label: '점심',
               done: _hasMeal(summary.records, 'lunch'),
-              icon: Icons.restaurant_rounded,
+              icon: Icons.restaurant_menu_rounded,
             ),
             MealStatusItem(
               label: '저녁',

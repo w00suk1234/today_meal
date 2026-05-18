@@ -37,6 +37,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
     final dateKey = AppDateUtils.dateKey(_selectedDate);
     final summary = controller.summaryFor(dateKey);
     final filteredRecords = _filtered(summary.records);
+    final groupedRecords = _groupRecords(filteredRecords);
 
     return AppScaffold(
       controller: widget.scrollController,
@@ -94,7 +95,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 onSelected: _setFilter),
           ],
         ),
-        const SectionHeader(title: '식사 카드'),
+        const SectionHeader(title: '식사별 기록'),
         if (filteredRecords.isEmpty)
           AppEmptyState(
             message: '선택한 조건에 기록된 식단이 없습니다. 첫 식사를 추가해보세요.',
@@ -103,10 +104,12 @@ class _RecordsScreenState extends State<RecordsScreen> {
             onAction: widget.onAddMeal,
           )
         else
-          ...filteredRecords.map(
-            (record) => MealRecordCard(
-              record: record,
-              onDelete: () => _delete(record.id),
+          ...groupedRecords.map(
+            (group) => MealRecordGroupCard(
+              mealType: group.mealType,
+              records: group.records,
+              onEdit: _showEditSheet,
+              onDelete: _confirmDelete,
             ),
           ),
       ],
@@ -119,6 +122,22 @@ class _RecordsScreenState extends State<RecordsScreen> {
         : records.where((record) => record.mealType == _filter).toList();
     return [...next]
       ..sort((a, b) => b.effectiveEatenAt.compareTo(a.effectiveEatenAt));
+  }
+
+  List<_MealGroup> _groupRecords(List<MealRecord> records) {
+    final byType = <String, List<MealRecord>>{};
+    for (final record in records) {
+      byType.putIfAbsent(record.mealType, () => []).add(record);
+    }
+
+    final order = _filter == 'all'
+        ? const ['breakfast', 'lunch', 'dinner', 'snack']
+        : [_filter];
+    return [
+      for (final type in order)
+        if (byType[type] != null && byType[type]!.isNotEmpty)
+          _MealGroup(mealType: type, records: byType[type]!),
+    ];
   }
 
   void _setFilter(String value) {
@@ -137,6 +156,197 @@ class _RecordsScreenState extends State<RecordsScreen> {
     }
   }
 
+  Future<void> _showEditSheet(MealRecord record) async {
+    final rootContext = context;
+    var selectedType = record.mealType;
+    var selectedTime = record.effectiveEatenAt;
+
+    await showModalBottomSheet<void>(
+      context: rootContext,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            Future<void> pickDateTime() async {
+              final date = await showDatePicker(
+                context: modalContext,
+                initialDate: selectedTime,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 30)),
+              );
+              if (date == null || !modalContext.mounted) {
+                return;
+              }
+              final time = await showTimePicker(
+                context: modalContext,
+                initialTime: TimeOfDay.fromDateTime(selectedTime),
+              );
+              if (time == null) {
+                return;
+              }
+              setModalState(() {
+                selectedTime = DateTime(
+                  date.year,
+                  date.month,
+                  date.day,
+                  time.hour,
+                  time.minute,
+                );
+              });
+            }
+
+            Future<void> save() async {
+              final duration = record.effectiveFinishedAt
+                  .difference(record.effectiveStartedAt);
+              final safeDuration = duration.inMinutes <= 0
+                  ? const Duration(minutes: 15)
+                  : duration;
+              final nextRecord = record.copyWith(
+                mealType: selectedType,
+                dateKey: AppDateUtils.dateKey(selectedTime),
+                eatenAt: selectedTime,
+                startedAt: selectedTime,
+                finishedAt: selectedTime.add(safeDuration),
+              );
+
+              setModalState(() => saving = true);
+              try {
+                await AppScope.of(rootContext).updateRecord(nextRecord);
+                if (!sheetContext.mounted) {
+                  return;
+                }
+                Navigator.of(sheetContext).pop();
+                if (mounted) {
+                  ScaffoldMessenger.of(rootContext).showSnackBar(
+                    const SnackBar(content: Text('기록을 수정했습니다.')),
+                  );
+                }
+              } catch (_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(rootContext).showSnackBar(
+                    const SnackBar(content: Text('수정에 실패했습니다.')),
+                  );
+                }
+              } finally {
+                if (modalContext.mounted) {
+                  setModalState(() => saving = false);
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 18,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('기록 수정', style: AppTextStyles.section),
+                  const SizedBox(height: 6),
+                  Text(record.foodName, style: AppTextStyles.caption),
+                  const SizedBox(height: 18),
+                  const Text(
+                    '식사 종류',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _MealTypeChip(
+                        label: '아침',
+                        value: 'breakfast',
+                        selected: selectedType == 'breakfast',
+                        onSelected: (value) =>
+                            setModalState(() => selectedType = value),
+                      ),
+                      _MealTypeChip(
+                        label: '점심',
+                        value: 'lunch',
+                        selected: selectedType == 'lunch',
+                        onSelected: (value) =>
+                            setModalState(() => selectedType = value),
+                      ),
+                      _MealTypeChip(
+                        label: '저녁',
+                        value: 'dinner',
+                        selected: selectedType == 'dinner',
+                        onSelected: (value) =>
+                            setModalState(() => selectedType = value),
+                      ),
+                      _MealTypeChip(
+                        label: '간식',
+                        value: 'snack',
+                        selected: selectedType == 'snack',
+                        onSelected: (value) =>
+                            setModalState(() => selectedType = value),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: pickDateTime,
+                      icon: const Icon(Icons.schedule_rounded, size: 18),
+                      label: Text('먹은 시간 ${_formatDateTime(selectedTime)}'),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : save,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(saving ? '저장 중...' : '수정 저장'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDelete(MealRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('기록 삭제'),
+          content: Text('${record.foodName} 기록을 삭제할까요?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.coral),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('삭제'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed == true) {
+      await _delete(record.id);
+    }
+  }
+
   Future<void> _delete(String id) async {
     try {
       await AppScope.of(context).deleteRecord(id);
@@ -151,6 +361,19 @@ class _RecordsScreenState extends State<RecordsScreen> {
       }
     }
   }
+
+  String _formatDateTime(DateTime value) {
+    final hh = value.hour.toString().padLeft(2, '0');
+    final mm = value.minute.toString().padLeft(2, '0');
+    return '${value.month}/${value.day} $hh:$mm';
+  }
+}
+
+class _MealGroup {
+  const _MealGroup({required this.mealType, required this.records});
+
+  final String mealType;
+  final List<MealRecord> records;
 }
 
 class _RecordSummaryCard extends StatelessWidget {
@@ -249,6 +472,33 @@ class _SummaryMacro extends StatelessWidget {
 
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final String value;
+  final bool selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(value),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primary : AppColors.textSecondary,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _MealTypeChip extends StatelessWidget {
+  const _MealTypeChip({
     required this.label,
     required this.value,
     required this.selected,

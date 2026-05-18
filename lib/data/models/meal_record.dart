@@ -38,6 +38,42 @@ class MealRecord {
   DateTime get effectiveFinishedAt =>
       finishedAt ?? effectiveStartedAt.add(const Duration(minutes: 15));
 
+  MealRecord copyWith({
+    String? id,
+    String? foodId,
+    String? foodName,
+    String? imagePath,
+    String? mealType,
+    double? intakeGram,
+    double? kcal,
+    double? carbs,
+    double? protein,
+    double? fat,
+    DateTime? createdAt,
+    String? dateKey,
+    DateTime? eatenAt,
+    DateTime? startedAt,
+    DateTime? finishedAt,
+  }) {
+    return MealRecord(
+      id: id ?? this.id,
+      foodId: foodId ?? this.foodId,
+      foodName: foodName ?? this.foodName,
+      imagePath: imagePath ?? this.imagePath,
+      mealType: mealType ?? this.mealType,
+      intakeGram: intakeGram ?? this.intakeGram,
+      kcal: kcal ?? this.kcal,
+      carbs: carbs ?? this.carbs,
+      protein: protein ?? this.protein,
+      fat: fat ?? this.fat,
+      createdAt: createdAt ?? this.createdAt,
+      dateKey: dateKey ?? this.dateKey,
+      eatenAt: eatenAt ?? this.eatenAt,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+    );
+  }
+
   factory MealRecord.fromJson(Map<String, dynamic> json) {
     double toDouble(Object? value) =>
         value is num ? value.toDouble() : double.tryParse('$value') ?? 0;

@@ -8,49 +8,26 @@ import '../../../widgets/section_header.dart';
 class MealTimeSection extends StatelessWidget {
   const MealTimeSection({
     required this.eatenAt,
-    required this.startedAt,
-    required this.finishedAt,
     required this.onPickEatenAt,
-    required this.onPickStartedAt,
-    required this.onPickFinishedAt,
     super.key,
   });
 
   final DateTime eatenAt;
-  final DateTime startedAt;
-  final DateTime finishedAt;
   final VoidCallback onPickEatenAt;
-  final VoidCallback onPickStartedAt;
-  final VoidCallback onPickFinishedAt;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: '식사 시간'),
+        const SectionHeader(title: '먹은 시간'),
         AppCard(
           padding: const EdgeInsets.all(14),
-          child: Column(
-            children: [
-              _TimeRow(
-                  label: '먹은 날짜/시간',
-                  value: _format(eatenAt),
-                  icon: Icons.event_available_outlined,
-                  onTap: onPickEatenAt),
-              const Divider(height: 18, color: AppColors.divider),
-              _TimeRow(
-                  label: '식사 시작',
-                  value: _format(startedAt),
-                  icon: Icons.play_circle_outline,
-                  onTap: onPickStartedAt),
-              const Divider(height: 18, color: AppColors.divider),
-              _TimeRow(
-                  label: '식사 종료',
-                  value: _format(finishedAt),
-                  icon: Icons.stop_circle_outlined,
-                  onTap: onPickFinishedAt),
-            ],
+          child: _TimeRow(
+            label: '기록 기준 시간',
+            value: _format(eatenAt),
+            icon: Icons.event_available_outlined,
+            onTap: onPickEatenAt,
           ),
         ),
       ],

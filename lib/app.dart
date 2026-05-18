@@ -307,6 +307,14 @@ class TodayMealController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateRecord(MealRecord updatedRecord) async {
+    records = records
+        .map((record) => record.id == updatedRecord.id ? updatedRecord : record)
+        .toList();
+    await mealRepository.saveRecords(records);
+    notifyListeners();
+  }
+
   Future<void> saveProfile(UserProfile nextProfile) async {
     profile = nextProfile;
     await userRepository.saveProfile(profile);

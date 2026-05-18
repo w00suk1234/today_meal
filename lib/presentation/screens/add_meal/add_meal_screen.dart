@@ -152,9 +152,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
           onPickCamera: () => _pickImage(ImageSource.camera),
           onAnalyze: canAnalyze ? _detectFoodsWithAi : null,
           hasCachedAnalysisForImage: hasCachedAnalysisForImage,
-          onForceAnalyze: canAnalyze
-              ? () => _detectFoodsWithAi(forceRemote: true)
-              : null,
+          onForceAnalyze:
+              canAnalyze ? () => _detectFoodsWithAi(forceRemote: true) : null,
           onSelectionChanged: _updateCandidateSelection,
           onPortionSelected: _updateCandidateGram,
           onCustomGramChanged: _updateCandidateCustomGram,
@@ -168,30 +167,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
         ),
         MealTimeSection(
           eatenAt: _eatenAt,
-          startedAt: _startedAt,
-          finishedAt: _finishedAt,
           onPickEatenAt: () => _pickDateTime(
             initial: _eatenAt,
             onPicked: (value) => setState(() {
               _eatenAt = value;
               _startedAt = value;
-              if (!_finishedAt.isAfter(_startedAt)) {
-                _finishedAt = _startedAt.add(const Duration(minutes: 15));
-              }
+              _finishedAt = _startedAt.add(const Duration(minutes: 15));
             }),
-          ),
-          onPickStartedAt: () => _pickDateTime(
-            initial: _startedAt,
-            onPicked: (value) => setState(() {
-              _startedAt = value;
-              if (!_finishedAt.isAfter(_startedAt)) {
-                _finishedAt = _startedAt.add(const Duration(minutes: 15));
-              }
-            }),
-          ),
-          onPickFinishedAt: () => _pickDateTime(
-            initial: _finishedAt,
-            onPicked: (value) => setState(() => _finishedAt = value),
           ),
         ),
         KeyedSubtree(

@@ -181,7 +181,7 @@ class TodayMealList extends StatelessWidget {
   IconData _icon(String type) {
     return switch (type) {
       'breakfast' => Icons.wb_sunny_outlined,
-      'lunch' => Icons.restaurant_rounded,
+      'lunch' => Icons.restaurant_menu_rounded,
       'dinner' => Icons.nightlight_round,
       _ => Icons.icecream_outlined,
     };
