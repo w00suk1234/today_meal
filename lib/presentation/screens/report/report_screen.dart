@@ -684,14 +684,16 @@ class _WeightTrendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasRecords = records.isNotEmpty;
+    final sortedRecords = [...records]
+      ..sort((a, b) => a.date.compareTo(b.date));
+    final hasRecords = sortedRecords.isNotEmpty;
     final baselineWeight = startingWeight != null && startingWeight! > 0
         ? startingWeight
         : hasRecords
-            ? records.first.weightKg
+            ? sortedRecords.first.weightKg
             : latestFallbackWeight;
     final latestWeight =
-        hasRecords ? records.last.weightKg : latestFallbackWeight;
+        hasRecords ? sortedRecords.last.weightKg : latestFallbackWeight;
     final totalDiff = baselineWeight == null || latestWeight == null
         ? null
         : latestWeight - baselineWeight;
@@ -723,6 +725,12 @@ class _WeightTrendCard extends StatelessWidget {
               style: AppTextStyles.body,
             )
           else ...[
+            _WeightLineChart(
+              points: _chartPoints(baselineWeight, sortedRecords),
+              targetWeight: targetWeight > 0 ? targetWeight : null,
+              totalDiff: totalDiff,
+            ),
+            const SizedBox(height: 14),
             _TrendRow(
               label: '설정 시작 → 최신',
               value:
@@ -762,6 +770,261 @@ class _WeightTrendCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<_WeightChartPoint> _chartPoints(
+    double? baselineWeight,
+    List<WeightRecord> sortedRecords,
+  ) {
+    final points = <_WeightChartPoint>[];
+    if (baselineWeight != null && baselineWeight > 0) {
+      points.add(_WeightChartPoint(label: '시작', weightKg: baselineWeight));
+    }
+
+    final visibleRecords = sortedRecords.length > 5
+        ? sortedRecords.sublist(sortedRecords.length - 5)
+        : sortedRecords;
+    for (var i = 0; i < visibleRecords.length; i++) {
+      final record = visibleRecords[i];
+      final isLast = i == visibleRecords.length - 1;
+      points.add(
+        _WeightChartPoint(
+          label: isLast ? '최신' : '${record.date.month}/${record.date.day}',
+          weightKg: record.weightKg,
+        ),
+      );
+    }
+
+    if (points.length == 1) {
+      points.add(
+        _WeightChartPoint(label: '최신', weightKg: points.first.weightKg),
+      );
+    }
+    return points;
+  }
+}
+
+class _WeightChartPoint {
+  const _WeightChartPoint({required this.label, required this.weightKg});
+
+  final String label;
+  final double weightKg;
+}
+
+class _WeightLineChart extends StatelessWidget {
+  const _WeightLineChart({
+    required this.points,
+    required this.targetWeight,
+    required this.totalDiff,
+  });
+
+  final List<_WeightChartPoint> points;
+  final double? targetWeight;
+  final double? totalDiff;
+
+  @override
+  Widget build(BuildContext context) {
+    final diff = totalDiff;
+    final trendColor =
+        diff == null || diff <= 0 ? AppColors.primary : AppColors.orange;
+    final trendText = diff == null
+        ? '기록 대기'
+        : diff.abs() < 0.1
+            ? '변화 거의 없음'
+            : diff < 0
+                ? '${diff.abs().toStringAsFixed(1)}kg 감량'
+                : '${diff.toStringAsFixed(1)}kg 증가';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '몸무게 그래프',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              Text(
+                trendText,
+                style: TextStyle(
+                  color: trendColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 128,
+            child: CustomPaint(
+              painter: _WeightLineChartPainter(
+                points: points,
+                targetWeight: targetWeight,
+                lineColor: trendColor,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              for (final point in points)
+                Expanded(
+                  child: Text(
+                    point.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (targetWeight != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              '점선은 목표 체중 ${targetWeight!.toStringAsFixed(1)}kg 기준이에요.',
+              style: AppTextStyles.caption,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WeightLineChartPainter extends CustomPainter {
+  const _WeightLineChartPainter({
+    required this.points,
+    required this.targetWeight,
+    required this.lineColor,
+  });
+
+  final List<_WeightChartPoint> points;
+  final double? targetWeight;
+  final Color lineColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty || size.width <= 0 || size.height <= 0) {
+      return;
+    }
+
+    final weights = [
+      for (final point in points) point.weightKg,
+      if (targetWeight != null) targetWeight!,
+    ];
+    var minWeight = weights.reduce(math.min);
+    var maxWeight = weights.reduce(math.max);
+    if ((maxWeight - minWeight).abs() < 0.5) {
+      minWeight -= 0.25;
+      maxWeight += 0.25;
+    } else {
+      final padding = (maxWeight - minWeight) * 0.18;
+      minWeight -= padding;
+      maxWeight += padding;
+    }
+
+    const chartPadding = EdgeInsets.fromLTRB(8, 8, 8, 10);
+    final chartWidth = size.width - chartPadding.horizontal;
+    final chartHeight = size.height - chartPadding.vertical;
+    final origin = Offset(chartPadding.left, chartPadding.top);
+
+    double xFor(int index) {
+      if (points.length <= 1) {
+        return origin.dx + chartWidth / 2;
+      }
+      return origin.dx + chartWidth * index / (points.length - 1);
+    }
+
+    double yFor(double weight) {
+      final ratio = (maxWeight - weight) / (maxWeight - minWeight);
+      return origin.dy + chartHeight * ratio.clamp(0.0, 1.0);
+    }
+
+    final gridPaint = Paint()
+      ..color = AppColors.border.withValues(alpha: 0.75)
+      ..strokeWidth = 1;
+    for (var i = 0; i < 4; i++) {
+      final y = origin.dy + chartHeight * i / 3;
+      canvas.drawLine(
+          Offset(origin.dx, y), Offset(origin.dx + chartWidth, y), gridPaint);
+    }
+
+    final target = targetWeight;
+    if (target != null && target >= minWeight && target <= maxWeight) {
+      final y = yFor(target);
+      final dashPaint = Paint()
+        ..color = AppColors.textMuted.withValues(alpha: 0.45)
+        ..strokeWidth = 1.2;
+      var x = origin.dx;
+      while (x < origin.dx + chartWidth) {
+        canvas.drawLine(Offset(x, y),
+            Offset(math.min(x + 7, origin.dx + chartWidth), y), dashPaint);
+        x += 12;
+      }
+    }
+
+    final path = Path();
+    for (var i = 0; i < points.length; i++) {
+      final offset = Offset(xFor(i), yFor(points[i].weightKg));
+      if (i == 0) {
+        path.moveTo(offset.dx, offset.dy);
+      } else {
+        path.lineTo(offset.dx, offset.dy);
+      }
+    }
+
+    final fillPath = Path.from(path)
+      ..lineTo(xFor(points.length - 1), origin.dy + chartHeight)
+      ..lineTo(xFor(0), origin.dy + chartHeight)
+      ..close();
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          lineColor.withValues(alpha: 0.16),
+          lineColor.withValues(alpha: 0.02),
+        ],
+      ).createShader(Offset.zero & size);
+    canvas.drawPath(fillPath, fillPaint);
+
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, linePaint);
+
+    final pointPaint = Paint()..color = lineColor;
+    final pointBorderPaint = Paint()..color = AppColors.cardWhite;
+    for (var i = 0; i < points.length; i++) {
+      final offset = Offset(xFor(i), yFor(points[i].weightKg));
+      canvas.drawCircle(offset, 6, pointBorderPaint);
+      canvas.drawCircle(offset, 4, pointPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WeightLineChartPainter oldDelegate) {
+    return oldDelegate.points != points ||
+        oldDelegate.targetWeight != targetWeight ||
+        oldDelegate.lineColor != lineColor;
   }
 }
 
