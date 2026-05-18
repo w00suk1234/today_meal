@@ -228,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-        const SectionHeader(title: '일일 권장 섭취량'),
+        const SectionHeader(title: '하루 목표 섭취량'),
         AppCard(
           color: AppColors.primaryDark,
           borderColor: AppColors.primaryDark,
@@ -254,10 +254,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.w900)),
                     const SizedBox(height: 4),
                     Text(
-                        '나이 ${age > 0 ? '$age세' : '미입력'} · BMR ${current.bmr.round()} · TDEE ${current.tdee.round()} 기반 추정',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.76),
-                            fontWeight: FontWeight.w700)),
+                      '나이 ${age > 0 ? '$age세' : '미입력'} · 활동량과 목표를 반영한 참고값',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.76),
+                          fontWeight: FontWeight.w700),
+                    ),
                   ],
                 ),
               ),

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../data/models/detected_food_candidate.dart';
@@ -86,6 +87,8 @@ class AiPhotoAnalysisSection extends StatelessWidget {
                       ? '이전 분석 결과 사용'
                       : 'AI 음식 분석 시작',
           icon: Icons.auto_awesome,
+          backgroundColor:
+              hasPickedImage ? AppColors.blue : AppColors.primary,
           onPressed: onAnalyze,
         ),
         if (hasCachedAnalysisForImage && !analyzing) ...[

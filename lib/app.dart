@@ -517,7 +517,7 @@ class _AppShellState extends State<AppShell> {
                           AppBottomNavigationItem(
                               icon: Icons.bar_chart_rounded,
                               activeIcon: Icons.insights_rounded,
-                              label: '리포트'),
+                              label: '요약'),
                           AppBottomNavigationItem(
                               icon: Icons.settings_outlined,
                               activeIcon: Icons.settings,

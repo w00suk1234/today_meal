@@ -174,14 +174,14 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             subtitle: bmiCategory,
           ),
           _MetricCard(
-            title: '기초대사량 / 유지 칼로리',
-            value: '${current.bmr.round()} / ${current.tdee.round()}kcal',
-            subtitle: 'Mifflin-St Jeor 공식 기반 추정값',
+            title: '하루 목표 섭취량',
+            value: '${current.targetKcal.round()}kcal',
+            subtitle: '활동량과 목표를 반영한 참고값',
           ),
           _MetricCard(
-            title: '목표 칼로리',
-            value: '${current.targetKcal.round()}kcal',
-            subtitle: '목표 체중까지 ${weightDiff.toStringAsFixed(1)}kg',
+            title: '목표 체중',
+            value: '${current.targetWeightKg.toStringAsFixed(1)}kg',
+            subtitle: '현재와 차이 ${weightDiff.abs().toStringAsFixed(1)}kg',
           ),
           const AppSectionTitle('몸무게 변화 기록'),
           if (weightLogs.isEmpty)

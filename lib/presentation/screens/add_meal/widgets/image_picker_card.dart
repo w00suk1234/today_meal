@@ -179,20 +179,28 @@ class _PickPhotoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final backgroundColor =
+        hasPreview ? AppColors.cardWhite : AppColors.primary;
+    final foregroundColor =
+        hasPreview ? AppColors.primaryDark : Colors.white;
+
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(15),
+        border: hasPreview
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.28))
+            : null,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.touch_app_rounded,
-            color: Colors.white,
+          Icon(
+            hasPreview ? Icons.swap_horiz_rounded : Icons.touch_app_rounded,
+            color: foregroundColor,
             size: 18,
           ),
           const SizedBox(width: 7),
@@ -202,11 +210,10 @@ class _PickPhotoButton extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w900,
                 height: 1,
-              ),
+              ).copyWith(color: foregroundColor),
             ),
           ),
         ],

@@ -14,3 +14,4 @@ ios/Flutter/flutter_export_environment.sh
 ios/Flutter/ephemeral/
 ios/Pods/
 ios/Podfile.lock
+.vercel

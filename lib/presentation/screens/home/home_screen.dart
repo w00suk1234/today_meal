@@ -115,7 +115,7 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'BMR ${health.bmr.round()} · 목표 ${health.targetKcal.round()}kcal',
+                      '하루 목표 ${health.targetKcal.round()}kcal · 참고용',
                       style: const TextStyle(fontWeight: FontWeight.w900),
                     ),
                   ),

@@ -51,21 +51,21 @@ class ReportScreen extends StatelessWidget {
       controller: scrollController,
       children: [
         const AppPageHeader(
-          title: '리포트',
-          subtitle: '오늘의 기록을 AI 코칭 리포트처럼 정리했어요',
+          title: '기록 요약',
+          subtitle: '오늘 식단과 몸무게 기록을 한눈에 정리했어요',
           icon: Icons.insights_rounded,
         ),
-        _AiReportHero(
+        _DailyReportHero(
             summary: summary,
             targetKcal: controller.profile.targetKcal,
             hasRecords: hasTodayRecords),
-        const SectionHeader(title: 'AI 영양 분석 리포트'),
+        const SectionHeader(title: '오늘 식단 피드백'),
         if (hasTodayRecords)
           for (final message in messages.take(3))
             ReportMessageCard(message: message)
         else
           AppEmptyState(
-            message: '아직 분석할 식단 기록이 없습니다. 식사 기록이 쌓이면 AI가 섭취 패턴을 요약해드려요.',
+            message: '아직 분석할 식단 기록이 없습니다. 식사 기록이 쌓이면 섭취 패턴을 요약해드려요.',
             icon: Icons.auto_graph_outlined,
             actionLabel: '식사 추가하기',
             onAction: onAddMeal,
@@ -149,8 +149,8 @@ class ReportScreen extends StatelessWidget {
   }
 }
 
-class _AiReportHero extends StatelessWidget {
-  const _AiReportHero({
+class _DailyReportHero extends StatelessWidget {
+  const _DailyReportHero({
     required this.summary,
     required this.targetKcal,
     required this.hasRecords,
@@ -189,7 +189,7 @@ class _AiReportHero extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(hasRecords ? 'AI 영양 분석 리포트' : '아직 분석할 식단 기록이 없습니다',
+                    Text(hasRecords ? '오늘 식단 요약' : '아직 분석할 식단 기록이 없습니다',
                         style: TextStyle(
                             color: hasRecords
                                 ? Colors.white

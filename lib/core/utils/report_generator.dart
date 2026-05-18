@@ -78,8 +78,10 @@ class ReportGenerator {
       messages.add(
         '현재 BMI는 ${latestBmi.toStringAsFixed(1)}로 ${HealthCalculator.getBmiCategory(latestBmi)}입니다.',
       );
-      messages.add(
-          '추정 기초대사량은 ${healthProfile.bmr.round()}kcal, 유지 칼로리는 ${healthProfile.tdee.round()}kcal입니다.');
+      if (healthProfile.targetKcal > 0) {
+        messages.add(
+            '하루 목표 섭취량은 ${healthProfile.targetKcal.round()}kcal로 설정되어 있습니다.');
+      }
       final diff = HealthCalculator.calculateWeightDiff(
           latestWeight, healthProfile.targetWeightKg);
       if (diff.abs() >= 0.1) {
