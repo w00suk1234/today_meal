@@ -256,6 +256,14 @@ class TodayMealController extends ChangeNotifier {
     return healthProfile.weightKg > 0 ? healthProfile.weightKg : null;
   }
 
+  double? weightChangeDeltaFromLatest(double nextWeightKg) {
+    final latest = latestWeightKg;
+    if (latest == null || latest <= 0 || nextWeightKg <= 0) {
+      return null;
+    }
+    return nextWeightKg - latest;
+  }
+
   double get latestBmi {
     final weightKg = latestWeightKg;
     if (weightKg == null || healthProfile.heightCm <= 0) {

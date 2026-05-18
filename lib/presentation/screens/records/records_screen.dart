@@ -193,6 +193,16 @@ class _RecordsScreenState extends State<RecordsScreen> {
                 );
                 return;
               }
+              final delta = controller.weightChangeDeltaFromLatest(weight);
+              if (delta != null && delta.abs() >= 5) {
+                final confirmed = await _confirmLargeWeightChange(
+                  modalContext,
+                  delta,
+                );
+                if (!confirmed) {
+                  return;
+                }
+              }
               setModalState(() => saving = true);
               try {
                 await controller.saveTodayWeightRecord(
@@ -236,7 +246,7 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   const Text('오늘 몸무게 기록', style: AppTextStyles.section),
                   const SizedBox(height: 6),
                   const Text(
-                    '몸무게 변화 추이와 BMI 계산에 사용하는 참고용 기록입니다.',
+                    '몸무게 변화 추이와 BMI 계산에 사용하는 참고용 기록입니다. 같은 날짜는 기존 기록을 수정해요.',
                     style: AppTextStyles.caption,
                   ),
                   const SizedBox(height: 16),
@@ -282,6 +292,35 @@ class _RecordsScreenState extends State<RecordsScreen> {
       weightController.dispose();
       memoController.dispose();
     });
+  }
+
+  Future<bool> _confirmLargeWeightChange(
+    BuildContext context,
+    double delta,
+  ) async {
+    final direction = delta > 0 ? '높게' : '낮게';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('몸무게 변화가 커요'),
+          content: Text(
+            '최근 기록보다 ${delta.abs().toStringAsFixed(1)}kg $direction 입력했어요. 오타가 아니라면 그대로 저장할 수 있어요.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('다시 입력'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('그대로 저장'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
   }
 
   Future<void> _showEditSheet(MealRecord record) async {
