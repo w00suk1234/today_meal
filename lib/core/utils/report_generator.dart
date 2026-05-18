@@ -35,15 +35,15 @@ class ReportGenerator {
     ];
 
     if (target <= 0) {
-      messages.add('목표 칼로리가 아직 설정되지 않았습니다. 설정 화면에서 하루 목표를 입력해보세요.');
+      messages.add('하루 참고 목표가 아직 설정되지 않았습니다. 설정 화면에서 목표를 입력해보세요.');
     } else {
       final ratio = summary.totalKcal / target;
       if (ratio >= 1.1) {
-        messages.add('목표 칼로리보다 높게 섭취했습니다. 다음 식사는 조금 가볍게 조절해보세요.');
+        messages.add('하루 참고 목표보다 많이 기록되었습니다. 다음 식사는 조금 가볍게 조절해보세요.');
       } else if (ratio <= 0.8) {
-        messages.add('목표 칼로리보다 낮게 섭취했습니다. 활동량이 많았다면 균형 잡힌 식사를 보완해보세요.');
+        messages.add('아직 참고 목표 안쪽에서 기록 중입니다. 숫자에 맞추기보다 컨디션에 맞춰 선택해보세요.');
       } else {
-        messages.add('목표 칼로리에 비교적 가깝게 기록되었습니다.');
+        messages.add('하루 참고 목표에 비교적 가깝게 기록되었습니다.');
       }
     }
 

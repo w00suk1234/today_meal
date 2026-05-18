@@ -25,9 +25,9 @@ class DailySummaryCard extends StatelessWidget {
       summary.totalKcal,
       targetKcal,
     );
-    final remaining = targetKcal - summary.totalKcal;
     final progress = (percent / 100).clamp(0.0, 1.0);
-    final isOverTarget = remaining < 0;
+    final diffFromTarget = summary.totalKcal - targetKcal;
+    final isOverTarget = diffFromTarget > 0;
 
     return AppCard(
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
@@ -81,10 +81,10 @@ class DailySummaryCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        _RemainingPill(
+                        _StatusPill(
                           label: isOverTarget
-                              ? '초과 ${_formatKcal(remaining.abs())}'
-                              : '남은 ${_formatKcal(remaining)}',
+                              ? '참고 목표보다 ${_formatKcal(diffFromTarget)} 초과'
+                              : '참고 목표 안쪽에서 기록 중',
                           isOverTarget: isOverTarget,
                         ),
                       ],
@@ -117,7 +117,7 @@ class DailySummaryCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 2),
-                            const Text('달성', style: AppTextStyles.caption),
+                            const Text('목표 대비', style: AppTextStyles.caption),
                           ],
                         ),
                       ],
@@ -139,13 +139,13 @@ class DailySummaryCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _Metric(label: '목표', value: _formatKcal(targetKcal)),
+                  _Metric(label: '참고 목표', value: _formatKcal(targetKcal)),
                   const SizedBox(width: 10),
                   _Metric(label: '오늘 기록', value: '${summary.records.length}개'),
                   const SizedBox(width: 10),
                   _Metric(
-                    label: isOverTarget ? '초과' : '남은 칼로리',
-                    value: _formatKcal(remaining.abs()),
+                    label: '상태',
+                    value: isOverTarget ? '목표 초과' : '기록 중',
                   ),
                 ],
               ),
@@ -157,8 +157,8 @@ class DailySummaryCard extends StatelessWidget {
   }
 }
 
-class _RemainingPill extends StatelessWidget {
-  const _RemainingPill({
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
     required this.label,
     required this.isOverTarget,
   });
