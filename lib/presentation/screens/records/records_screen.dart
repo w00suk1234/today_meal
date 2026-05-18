@@ -160,6 +160,16 @@ class _RecordsScreenState extends State<RecordsScreen> {
     final rootContext = context;
     var selectedType = record.mealType;
     var selectedTime = record.effectiveEatenAt;
+    final gramController =
+        TextEditingController(text: record.intakeGram.toStringAsFixed(0));
+    final kcalController =
+        TextEditingController(text: record.kcal.toStringAsFixed(0));
+    final carbController =
+        TextEditingController(text: record.carbs.toStringAsFixed(0));
+    final proteinController =
+        TextEditingController(text: record.protein.toStringAsFixed(0));
+    final fatController =
+        TextEditingController(text: record.fat.toStringAsFixed(0));
 
     await showModalBottomSheet<void>(
       context: rootContext,
@@ -201,6 +211,22 @@ class _RecordsScreenState extends State<RecordsScreen> {
             }
 
             Future<void> save() async {
+              final intakeGram = _parseNumber(gramController.text);
+              final kcal = _parseNumber(kcalController.text);
+              final carbs = _parseNumber(carbController.text);
+              final protein = _parseNumber(proteinController.text);
+              final fat = _parseNumber(fatController.text);
+              if (intakeGram == null || intakeGram <= 0) {
+                _showSnack('섭취량은 0g보다 크게 입력해 주세요.');
+                return;
+              }
+              if ([kcal, carbs, protein, fat].any(
+                (value) => value == null || value < 0,
+              )) {
+                _showSnack('칼로리와 탄단지는 0 이상 숫자로 입력해 주세요.');
+                return;
+              }
+
               final duration = record.effectiveFinishedAt
                   .difference(record.effectiveStartedAt);
               final safeDuration = duration.inMinutes <= 0
@@ -208,6 +234,11 @@ class _RecordsScreenState extends State<RecordsScreen> {
                   : duration;
               final nextRecord = record.copyWith(
                 mealType: selectedType,
+                intakeGram: intakeGram,
+                kcal: kcal,
+                carbs: carbs,
+                protein: protein,
+                fat: fat,
                 dateKey: AppDateUtils.dateKey(selectedTime),
                 eatenAt: selectedTime,
                 startedAt: selectedTime,
@@ -302,6 +333,64 @@ class _RecordsScreenState extends State<RecordsScreen> {
                       label: Text('먹은 시간 ${_formatDateTime(selectedTime)}'),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '영양 정보',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _NumberField(
+                          controller: gramController,
+                          label: '섭취량',
+                          suffix: 'g',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _NumberField(
+                          controller: kcalController,
+                          label: '칼로리',
+                          suffix: 'kcal',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _NumberField(
+                          controller: carbController,
+                          label: '탄수화물',
+                          suffix: 'g',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _NumberField(
+                          controller: proteinController,
+                          label: '단백질',
+                          suffix: 'g',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _NumberField(
+                          controller: fatController,
+                          label: '지방',
+                          suffix: 'g',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '사진 분석값이 맞지 않으면 직접 보정할 수 있어요.',
+                    style: AppTextStyles.caption,
+                  ),
                   const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
@@ -318,7 +407,13 @@ class _RecordsScreenState extends State<RecordsScreen> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      gramController.dispose();
+      kcalController.dispose();
+      carbController.dispose();
+      proteinController.dispose();
+      fatController.dispose();
+    });
   }
 
   Future<void> _confirmDelete(MealRecord record) async {
@@ -366,6 +461,15 @@ class _RecordsScreenState extends State<RecordsScreen> {
     final hh = value.hour.toString().padLeft(2, '0');
     final mm = value.minute.toString().padLeft(2, '0');
     return '${value.month}/${value.day} $hh:$mm';
+  }
+
+  double? _parseNumber(String value) {
+    return double.tryParse(value.trim().replaceAll(',', '.'));
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -519,6 +623,30 @@ class _MealTypeChip extends StatelessWidget {
       labelStyle: TextStyle(
         color: selected ? AppColors.primary : AppColors.textSecondary,
         fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+class _NumberField extends StatelessWidget {
+  const _NumberField({
+    required this.controller,
+    required this.label,
+    required this.suffix,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixText: suffix,
       ),
     );
   }

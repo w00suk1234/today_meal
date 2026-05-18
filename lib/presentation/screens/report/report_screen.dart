@@ -48,6 +48,8 @@ class ReportScreen extends StatelessWidget {
     final hasWeeklyRecords = weekly.any(
       (summary) => summary.records.isNotEmpty,
     );
+    final recordedDays7 =
+        weekly.where((summary) => summary.records.isNotEmpty).length;
 
     return AppScaffold(
       controller: scrollController,
@@ -92,7 +94,12 @@ class ReportScreen extends StatelessWidget {
         const SectionHeader(title: '영양 밸런스'),
         _NutritionBalanceCard(summary: summary),
         const SectionHeader(title: '활동 기록'),
-        _StreakCard(streak: streak, recordCount: controller.records.length),
+        _StreakCard(
+          streak: streak,
+          recordCount: controller.records.length,
+          recordedDays7: recordedDays7,
+          weightRecordCount: controller.weightRecords.length,
+        ),
         const SectionHeader(title: '몸상태 요약'),
         Row(
           children: [
@@ -180,9 +187,8 @@ class _DailyReportHero extends StatelessWidget {
       targetKcal,
     );
     return AppCard(
-      color: hasRecords
-          ? AppColors.primaryDark
-          : AppColors.lightGreenBackground,
+      color:
+          hasRecords ? AppColors.primaryDark : AppColors.lightGreenBackground,
       borderColor: hasRecords ? AppColors.primaryDark : AppColors.border,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,7 +205,7 @@ class _DailyReportHero extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  Icons.auto_awesome,
+                  Icons.summarize_outlined,
                   color: hasRecords ? Colors.white : AppColors.primary,
                 ),
               ),
@@ -211,9 +217,8 @@ class _DailyReportHero extends StatelessWidget {
                     Text(
                       hasRecords ? '오늘 식단 요약' : '아직 분석할 식단 기록이 없습니다',
                       style: TextStyle(
-                        color: hasRecords
-                            ? Colors.white
-                            : AppColors.textPrimary,
+                        color:
+                            hasRecords ? Colors.white : AppColors.textPrimary,
                         fontWeight: FontWeight.w900,
                         fontSize: 17,
                       ),
@@ -287,12 +292,31 @@ class _WeeklyCaloriesChart extends StatelessWidget {
       targetKcal,
       summaries.map((summary) => summary.totalKcal).fold<double>(0, math.max),
     );
-    const labels = ['월', '화', '수', '목', '금', '토', '일'];
+    final recordedDays =
+        summaries.where((summary) => summary.records.isNotEmpty).length;
+    final todayKcal = summaries.isEmpty ? 0 : summaries.last.totalKcal.round();
     return AppCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hasData
+                      ? '최근 7일 중 $recordedDays일 기록 · 오늘 ${todayKcal}kcal'
+                      : '최근 7일 식사 기록 대기 중',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (targetKcal > 0)
+                Text('참고 ${targetKcal.round()}kcal',
+                    style: AppTextStyles.caption),
+            ],
+          ),
+          const SizedBox(height: 14),
           SizedBox(
-            height: 168,
+            height: 158,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -303,22 +327,37 @@ class _WeeklyCaloriesChart extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          SizedBox(
+                            height: 20,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                summaries[i].totalKcal > 0
+                                    ? summaries[i].totalKcal.round().toString()
+                                    : '',
+                                style: AppTextStyles.caption.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
                           Expanded(
                             child: Align(
                               alignment: Alignment.bottomCenter,
                               child: FractionallySizedBox(
                                 heightFactor: hasData
-                                    ? (summaries[i].totalKcal / maxValue).clamp(
-                                        0.08,
-                                        1.0,
-                                      )
+                                    ? summaries[i].totalKcal <= 0
+                                        ? 0.03
+                                        : (summaries[i].totalKcal / maxValue)
+                                            .clamp(0.14, 1.0)
                                     : (0.22 + i * 0.035).clamp(0.2, 0.48),
                                 child: Container(
                                   decoration: BoxDecoration(
                                     color: hasData
                                         ? (i == summaries.length - 1
-                                              ? AppColors.primary
-                                              : AppColors.primarySoft)
+                                            ? AppColors.primary
+                                            : AppColors.primarySoft)
                                         : AppColors.border.withValues(
                                             alpha: 0.8,
                                           ),
@@ -330,7 +369,7 @@ class _WeeklyCaloriesChart extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            labels[i],
+                            _weekdayLabel(summaries[i].dateKey),
                             style: AppTextStyles.caption.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
@@ -363,6 +402,14 @@ class _WeeklyCaloriesChart extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _weekdayLabel(String dateKey) {
+    final date = DateTime.tryParse(dateKey);
+    if (date == null) {
+      return '';
+    }
+    return const ['월', '화', '수', '목', '금', '토', '일'][date.weekday - 1];
   }
 }
 
@@ -415,9 +462,8 @@ class _NutritionBalanceCard extends StatelessWidget {
                 _LegendRow(
                   label: '탄수화물',
                   value: summary.totalCarbs,
-                  color: hasData
-                      ? AppColors.macroCarb
-                      : AppColors.textSecondary,
+                  color:
+                      hasData ? AppColors.macroCarb : AppColors.textSecondary,
                 ),
                 const SizedBox(height: 10),
                 _LegendRow(
@@ -529,40 +575,89 @@ class _LegendRow extends StatelessWidget {
 }
 
 class _StreakCard extends StatelessWidget {
-  const _StreakCard({required this.streak, required this.recordCount});
+  const _StreakCard({
+    required this.streak,
+    required this.recordCount,
+    required this.recordedDays7,
+    required this.weightRecordCount,
+  });
 
   final int streak;
   final int recordCount;
+  final int recordedDays7;
+  final int weightRecordCount;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       child: Row(
         children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.local_fire_department_outlined,
-              color: AppColors.primary,
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$streak일 연속 기록', style: AppTextStyles.section),
-                const SizedBox(height: 5),
-                Text('누적 식사 기록 $recordCount개', style: AppTextStyles.caption),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: const Icon(
+                        Icons.checklist_rtl_rounded,
+                        color: AppColors.primary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('$streak일 연속 식사 기록',
+                              style: AppTextStyles.section),
+                          const SizedBox(height: 3),
+                          const Text('식단과 몸무게 기록 습관을 보여줘요',
+                              style: AppTextStyles.caption),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _ActivityStat(label: '이번 주', value: '$recordedDays7일'),
+                    _ActivityStat(label: '식사 기록', value: '$recordCount개'),
+                    _ActivityStat(label: '몸무게', value: '$weightRecordCount개'),
+                  ],
+                ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityStat extends StatelessWidget {
+  const _ActivityStat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: AppTextStyles.caption),
+          const SizedBox(height: 3),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -587,12 +682,10 @@ class _WeightTrendCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasRecords = records.isNotEmpty;
-    final firstWeight = hasRecords
-        ? records.first.weightKg
-        : latestFallbackWeight;
-    final latestWeight = hasRecords
-        ? records.last.weightKg
-        : latestFallbackWeight;
+    final firstWeight =
+        hasRecords ? records.first.weightKg : latestFallbackWeight;
+    final latestWeight =
+        hasRecords ? records.last.weightKg : latestFallbackWeight;
     final totalDiff = firstWeight == null || latestWeight == null
         ? null
         : latestWeight - firstWeight;
@@ -633,7 +726,7 @@ class _WeightTrendCard extends StatelessWidget {
             _TrendRow(
               label: '최근 7일',
               value: trend7Days == null
-                  ? '비교할 기록이 더 필요해요'
+                  ? '2개 이상 기록하면 표시돼요'
                   : '${trend7Days! >= 0 ? '+' : ''}${trend7Days!.toStringAsFixed(1)}kg 변화',
             ),
             const SizedBox(height: 8),
@@ -642,8 +735,8 @@ class _WeightTrendCard extends StatelessWidget {
               value: targetDiff == null
                   ? '목표 체중 미입력'
                   : targetDiff.abs() < 0.1
-                  ? '목표 체중에 가까워요'
-                  : '목표 체중까지 ${targetDiff.abs().toStringAsFixed(1)}kg 남았어요',
+                      ? '목표 체중에 가까워요'
+                      : '목표 체중까지 ${targetDiff.abs().toStringAsFixed(1)}kg 남았어요',
             ),
             const SizedBox(height: 8),
             _TrendRow(

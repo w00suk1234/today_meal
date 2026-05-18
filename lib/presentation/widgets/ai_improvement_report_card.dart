@@ -81,15 +81,21 @@ class AiImprovementReportCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(report.title, style: AppTextStyles.section),
+                      Text(
+                        report.title,
+                        style: AppTextStyles.section.copyWith(height: 1.3),
+                      ),
                       const SizedBox(height: 6),
-                      Text(report.summary, style: AppTextStyles.body),
+                      Text(
+                        report.summary,
+                        style: AppTextStyles.body.copyWith(height: 1.45),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             _SectionList(
               title: '잘한 점',
               items: report.goodPoints,
@@ -115,7 +121,8 @@ class AiImprovementReportCard extends StatelessWidget {
               color: AppColors.teal,
             ),
             const SizedBox(height: 6),
-            Text(report.caution, style: AppTextStyles.caption),
+            Text(report.caution,
+                style: AppTextStyles.caption.copyWith(height: 1.4)),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
@@ -142,11 +149,11 @@ class _ScoreBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final showScore = score > 0;
     return Container(
-      width: 58,
-      height: 58,
+      width: 54,
+      height: 54,
       decoration: BoxDecoration(
         color: AppColors.teal.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -178,7 +185,7 @@ class _SectionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -195,10 +202,10 @@ class _SectionList extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 9),
           for (final item in items.take(3))
             Padding(
-              padding: const EdgeInsets.only(bottom: 5),
+              padding: const EdgeInsets.only(bottom: 7),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -211,7 +218,12 @@ class _SectionList extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  Expanded(child: Text(item, style: AppTextStyles.body)),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: AppTextStyles.body.copyWith(height: 1.45),
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -30,8 +30,12 @@ class ReportGenerator {
     }
 
     final target = healthProfile?.targetKcal ?? profile.targetKcal;
+    final mealTypes = summary.records.map((record) => record.mealType).toSet();
+    final mealLabels = mealTypes.map(_mealTypeLabel).join(', ');
     final messages = <String>[
-      '오늘 총 섭취 칼로리는 ${summary.totalKcal.round()}kcal입니다.',
+      mealLabels.isEmpty
+          ? '오늘은 식사 기록 ${summary.records.length}개가 저장되어 있습니다.'
+          : '오늘은 $mealLabels 기록 ${summary.records.length}개가 저장되어 있습니다.',
     ];
 
     if (target <= 0) {
@@ -39,11 +43,21 @@ class ReportGenerator {
     } else {
       final ratio = summary.totalKcal / target;
       if (ratio >= 1.1) {
-        messages.add('하루 참고 목표보다 많이 기록되었습니다. 다음 식사는 조금 가볍게 조절해보세요.');
+        messages.add(
+          '현재 ${summary.totalKcal.round()}kcal로 참고 목표보다 높은 흐름입니다. 다음 식사는 부담이 덜한 메뉴가 좋아 보여요.',
+        );
+      } else if (ratio <= 0.35) {
+        messages.add(
+          '현재 ${summary.totalKcal.round()}kcal만 기록되어 있어 아직 하루 전체를 판단하기는 이릅니다. 누락된 음식이 있으면 먼저 보정해보세요.',
+        );
       } else if (ratio <= 0.8) {
-        messages.add('아직 참고 목표 안쪽에서 기록 중입니다. 숫자에 맞추기보다 컨디션에 맞춰 선택해보세요.');
+        messages.add(
+          '현재 ${summary.totalKcal.round()}kcal로 참고 목표보다 낮은 흐름입니다. 목표를 채우기보다 컨디션과 식사 계획을 같이 보세요.',
+        );
       } else {
-        messages.add('하루 참고 목표에 비교적 가깝게 기록되었습니다.');
+        messages.add(
+          '현재 ${summary.totalKcal.round()}kcal로 참고 목표에 비교적 가까운 흐름입니다.',
+        );
       }
     }
 
@@ -53,11 +67,21 @@ class ReportGenerator {
     if (macroKcal > 0) {
       final proteinRatio = summary.totalProtein * 4 / macroKcal;
       final fatRatio = summary.totalFat * 9 / macroKcal;
+      final carbRatio = summary.totalCarbs * 4 / macroKcal;
       if (proteinRatio < 0.16) {
-        messages.add('단백질 섭취 비중이 비교적 낮습니다. 다음 식사에서 단백질 식품을 보완해보세요.');
+        messages.add(
+          '단백질 비중이 ${_percent(proteinRatio)}로 낮게 기록되었습니다. 다음 식사에 단백질 식품을 더하면 균형을 보기 쉬워요.',
+        );
       }
       if (fatRatio > 0.38) {
-        messages.add('지방 섭취 비중이 높은 편입니다. 기름진 음식의 양을 조절해보세요.');
+        messages.add(
+          '지방 비중이 ${_percent(fatRatio)}로 높은 편입니다. 기름진 메뉴가 겹쳤는지 확인해보세요.',
+        );
+      }
+      if (carbRatio > 0.72) {
+        messages.add(
+          '탄수화물 비중이 ${_percent(carbRatio)}로 높게 기록되었습니다. 단백질이나 채소가 빠졌는지 확인해보세요.',
+        );
       }
       messages.add(
         '탄단지 기록은 탄수화물 ${summary.totalCarbs.toStringAsFixed(1)}g, 단백질 ${summary.totalProtein.toStringAsFixed(1)}g, 지방 ${summary.totalFat.toStringAsFixed(1)}g입니다.',
@@ -126,6 +150,8 @@ class ReportGenerator {
       _ => '간식',
     };
   }
+
+  static String _percent(double ratio) => '${(ratio * 100).round()}%';
 
   static const _notice = '이 내용은 건강 진단이나 처방이 아닌 식단 기록 참고용 추정 결과입니다.';
 }

@@ -84,7 +84,9 @@ class DailySummaryCard extends StatelessWidget {
                         _StatusPill(
                           label: isOverTarget
                               ? '참고 목표보다 ${_formatKcal(diffFromTarget)} 초과'
-                              : '참고 목표 안쪽에서 기록 중',
+                              : summary.records.isEmpty
+                                  ? '아직 기록 전'
+                                  : '오늘 기록 ${summary.records.length}개 반영',
                           isOverTarget: isOverTarget,
                         ),
                       ],
