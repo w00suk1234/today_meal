@@ -112,10 +112,9 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
     final needsReview = AiCandidateReview.needsReview(
       name: widget.candidate.name,
       confidenceLabel: widget.candidate.confidenceLabel,
-      hasMatchedFood: food != null,
     );
-    final suggestions =
-        AiCandidateReview.suggestionsFor(widget.candidate.name);
+    final usesEstimate = food == null && !needsReview;
+    final suggestions = AiCandidateReview.suggestionsFor(widget.candidate.name);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -187,8 +186,8 @@ class _AiFoodCandidateCardState extends State<_AiFoodCandidateCard> {
                 onSuggestionSelected: widget.onSuggestionSelected,
                 onMatchManually: widget.onMatchManually,
               )
-            else if (widget.onMatchManually != null)
-              _ManualEditButton(onTap: widget.onMatchManually!),
+            else if (usesEstimate)
+              const _EstimateNotice(),
             const SizedBox(height: 14),
             const Text(
               '섭취량 선택',
@@ -468,6 +467,35 @@ class _NeedsReviewPanel extends StatelessWidget {
   }
 }
 
+class _EstimateNotice extends StatelessWidget {
+  const _EstimateNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.14)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.fact_check_outlined, color: AppColors.primary, size: 18),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '음식명은 그대로 저장하고, 영양값은 추정치로 계산해요.',
+              style: AppTextStyles.caption,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SuggestionChip extends StatelessWidget {
   const _SuggestionChip({required this.label, required this.onTap});
 
@@ -501,27 +529,6 @@ class _SuggestionChip extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ManualEditButton extends StatelessWidget {
-  const _ManualEditButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: SizedBox(
-        height: 40,
-        child: TextButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.search_rounded, size: 16),
-          label: const Text('직접 검색으로 수정'),
         ),
       ),
     );

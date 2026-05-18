@@ -21,30 +21,34 @@ class AppEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: const BoxDecoration(
-                color: AppColors.lightGreenBackground, shape: BoxShape.circle),
-            child: Icon(icon, size: 28, color: AppColors.primary),
-          ),
-          const SizedBox(height: 10),
-          Text(message,
-              textAlign: TextAlign.center, style: AppTextStyles.muted),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 16),
-            PrimaryActionButton(
-              label: actionLabel!,
-              icon: Icons.add_circle_outline,
-              compact: true,
-              onPressed: onAction,
+    return SizedBox(
+      width: double.infinity,
+      child: AppCard(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              decoration: const BoxDecoration(
+                  color: AppColors.lightGreenBackground,
+                  shape: BoxShape.circle),
+              child: Icon(icon, size: 28, color: AppColors.primary),
             ),
+            const SizedBox(height: 10),
+            Text(message,
+                textAlign: TextAlign.center, style: AppTextStyles.muted),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 16),
+              PrimaryActionButton(
+                label: actionLabel!,
+                icon: Icons.add_circle_outline,
+                compact: true,
+                onPressed: onAction,
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -21,14 +21,18 @@ class FoodRepository {
   }
 
   List<FoodItem> search(List<FoodItem> foods, String query) {
-    final normalized = query.trim().toLowerCase();
+    final normalized = _normalize(query);
     if (normalized.isEmpty) {
       return foods.take(8).toList();
     }
     return foods
-        .where((food) =>
-            food.name.toLowerCase().contains(normalized) ||
-            food.category.toLowerCase().contains(normalized))
+        .where((food) {
+          final foodName = _normalize(food.name);
+          final category = _normalize(food.category);
+          return foodName.contains(normalized) ||
+              normalized.contains(foodName) ||
+              category.contains(normalized);
+        })
         .take(20)
         .toList();
   }
@@ -56,9 +60,9 @@ class FoodRepository {
       return preferred;
     }
 
-    final normalized = candidateName.trim().toLowerCase();
+    final normalized = _normalize(candidateName);
     for (final food in foods) {
-      if (food.name.toLowerCase() == normalized) {
+      if (_normalize(food.name) == normalized) {
         return food;
       }
     }
@@ -69,8 +73,18 @@ class FoodRepository {
       '쌀밥': ['공깃밥'],
       '흰 쌀밥': ['공깃밥'],
       '잡곡밥': ['현미밥', '공깃밥'],
+      '미역국': ['미역국'],
       '된장국': ['된장찌개'],
       '된장찌개': ['된장찌개'],
+      '비빔밥': ['비빔밥'],
+      '오징어비빔밥': ['오징어 비빔밥'],
+      '오징어 비빔밥': ['오징어 비빔밥'],
+      '쭈꾸미비빔밥': ['쭈꾸미 비빔밥'],
+      '쭈꾸미 비빔밥': ['쭈꾸미 비빔밥'],
+      '주꾸미비빔밥': ['쭈꾸미 비빔밥'],
+      '주꾸미 비빔밥': ['쭈꾸미 비빔밥'],
+      '쭈꾸미': ['쭈꾸미 비빔밥'],
+      '주꾸미': ['쭈꾸미 비빔밥'],
       '고등어': ['고등어구이'],
       '오이': ['오이무침'],
       '김치': ['김치'],
@@ -79,6 +93,10 @@ class FoodRepository {
       '치즈버거': ['치즈버거'],
       '피자': ['피자'],
       '감자튀김': ['감자튀김'],
+      '파전': ['파전'],
+      '해물파전': ['해물파전', '파전'],
+      '김치전': ['김치전'],
+      '전': ['파전', '김치전'],
       '밥': ['현미밥', '공깃밥'],
     };
 
@@ -88,7 +106,7 @@ class FoodRepository {
       }
       for (final alias in entry.value) {
         for (final food in foods) {
-          if (food.name.contains(alias)) {
+          if (_normalize(food.name).contains(_normalize(alias))) {
             return food;
           }
         }
@@ -101,11 +119,15 @@ class FoodRepository {
     }
 
     final strongMatches = foods.where((food) {
-      final foodName = food.name.toLowerCase();
+      final foodName = _normalize(food.name);
       return normalized == foodName ||
           (normalized.length >= 3 && foodName.contains(normalized)) ||
           (foodName.length >= 3 && normalized.contains(foodName));
     }).toList();
     return strongMatches.length == 1 ? strongMatches.first : null;
+  }
+
+  String _normalize(String value) {
+    return value.trim().replaceAll(RegExp(r'\s+'), '').toLowerCase();
   }
 }

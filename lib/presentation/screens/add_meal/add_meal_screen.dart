@@ -514,13 +514,8 @@ class _AddMealScreenState extends State<AddMealScreen> {
       if (AiCandidateReview.needsReview(
         name: candidate.name,
         confidenceLabel: candidate.confidenceLabel,
-        hasMatchedFood: matchedFoods[candidate.id] != null,
       )) {
-        _showSnack('정확한 기록을 위해 음식명을 직접 검색으로 확인해 주세요.');
-        return;
-      }
-      if (matchedFoods[candidate.id] == null) {
-        _showSnack('정확한 기록을 위해 ${candidate.name}의 음식명을 직접 검색으로 확인해 주세요.');
+        _showSnack('정확한 기록을 위해 음식명을 조금 더 구체적으로 확인해 주세요.');
         return;
       }
     }
@@ -534,7 +529,7 @@ class _AddMealScreenState extends State<AddMealScreen> {
       final records = <MealRecord>[];
       for (var i = 0; i < selectedCandidates.length; i++) {
         final candidate = selectedCandidates[i];
-        final food = matchedFoods[candidate.id]!;
+        final food = _foodForAiCandidate(candidate, matchedFoods[candidate.id]);
         records.add(_createRecord(
             food: food, intakeGram: candidate.intakeGram, sequence: i));
       }
@@ -660,17 +655,13 @@ class _AddMealScreenState extends State<AddMealScreen> {
     var fat = 0.0;
     for (final candidate
         in _aiCandidates.where((candidate) => candidate.selected)) {
-      final food = matchedFoods[candidate.id];
-      if (food == null) {
-        continue;
-      }
       if (AiCandidateReview.needsReview(
         name: candidate.name,
         confidenceLabel: candidate.confidenceLabel,
-        hasMatchedFood: true,
       )) {
         continue;
       }
+      final food = _foodForAiCandidate(candidate, matchedFoods[candidate.id]);
       kcal += NutritionCalculator.calculateKcal(food, candidate.intakeGram);
       carbs += NutritionCalculator.calculateCarbs(food, candidate.intakeGram);
       protein +=
@@ -678,6 +669,127 @@ class _AddMealScreenState extends State<AddMealScreen> {
       fat += NutritionCalculator.calculateFat(food, candidate.intakeGram);
     }
     return NutritionDraft(kcal: kcal, carbs: carbs, protein: protein, fat: fat);
+  }
+
+  FoodItem _foodForAiCandidate(
+    DetectedFoodCandidate candidate,
+    FoodItem? matchedFood,
+  ) {
+    return matchedFood ?? _estimatedFoodItem(candidate);
+  }
+
+  FoodItem _estimatedFoodItem(DetectedFoodCandidate candidate) {
+    final name =
+        candidate.name.trim().isEmpty ? 'AI 추정 음식' : candidate.name.trim();
+    final gram = candidate.intakeGram <= 0 ? 100.0 : candidate.intakeGram;
+    final profile = _nutritionProfileForName(name);
+    final safeName = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^0-9a-zA-Z가-힣]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+
+    return FoodItem(
+      id: 'ai_estimate_${safeName.isEmpty ? candidate.id : safeName}',
+      name: name,
+      category: 'AI 추정',
+      servingGram: gram.clamp(20.0, 2000.0).toDouble(),
+      kcalPer100g: profile.kcalPer100g,
+      carbPer100g: profile.carbPer100g,
+      proteinPer100g: profile.proteinPer100g,
+      fatPer100g: profile.fatPer100g,
+    );
+  }
+
+  _AiNutritionProfile _nutritionProfileForName(String name) {
+    final normalized = name.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    if (normalized.contains('파전') ||
+        normalized.contains('해물파전') ||
+        normalized.contains('김치전') ||
+        normalized.contains('부침') ||
+        normalized.endsWith('전')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 220,
+        carbPer100g: 24,
+        proteinPer100g: 5.5,
+        fatPer100g: 11.5,
+      );
+    }
+    if (normalized.contains('튀김') ||
+        normalized.contains('돈가스') ||
+        normalized.contains('치킨')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 280,
+        carbPer100g: 18,
+        proteinPer100g: 13,
+        fatPer100g: 18,
+      );
+    }
+    if (normalized.contains('밥') || normalized.contains('죽')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 145,
+        carbPer100g: 31,
+        proteinPer100g: 3,
+        fatPer100g: 1,
+      );
+    }
+    if (normalized.contains('면') ||
+        normalized.contains('라면') ||
+        normalized.contains('국수') ||
+        normalized.contains('우동')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 120,
+        carbPer100g: 18,
+        proteinPer100g: 4,
+        fatPer100g: 3,
+      );
+    }
+    if (normalized.contains('고기') ||
+        normalized.contains('스테이크') ||
+        normalized.contains('삼겹') ||
+        normalized.contains('불고기')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 250,
+        carbPer100g: 3,
+        proteinPer100g: 18,
+        fatPer100g: 17,
+      );
+    }
+    if (normalized.contains('생선') || normalized.contains('구이')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 180,
+        carbPer100g: 0,
+        proteinPer100g: 20,
+        fatPer100g: 10,
+      );
+    }
+    if (normalized.contains('샐러드') ||
+        normalized.contains('나물') ||
+        normalized.contains('채소')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 55,
+        carbPer100g: 8,
+        proteinPer100g: 2,
+        fatPer100g: 2,
+      );
+    }
+    if (normalized.contains('음료') ||
+        normalized.contains('커피') ||
+        normalized.contains('스무디') ||
+        normalized.contains('주스')) {
+      return const _AiNutritionProfile(
+        kcalPer100g: 45,
+        carbPer100g: 10,
+        proteinPer100g: 1,
+        fatPer100g: 1,
+      );
+    }
+    return const _AiNutritionProfile(
+      kcalPer100g: 170,
+      carbPer100g: 18,
+      proteinPer100g: 7,
+      fatPer100g: 6,
+    );
   }
 
   void _selectFood(FoodItem food) {
@@ -792,4 +904,18 @@ class _ImageDimensions {
 
   final int width;
   final int height;
+}
+
+class _AiNutritionProfile {
+  const _AiNutritionProfile({
+    required this.kcalPer100g,
+    required this.carbPer100g,
+    required this.proteinPer100g,
+    required this.fatPer100g,
+  });
+
+  final double kcalPer100g;
+  final double carbPer100g;
+  final double proteinPer100g;
+  final double fatPer100g;
 }

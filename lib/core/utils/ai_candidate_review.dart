@@ -63,12 +63,10 @@ class AiCandidateReview {
   static bool needsReview({
     required String name,
     required String confidenceLabel,
-    required bool hasMatchedFood,
   }) {
     return isGenericName(name) ||
         isLowConfidence(confidenceLabel) ||
-        isTooBroadOrShort(name) ||
-        !hasMatchedFood;
+        isTooBroadOrShort(name);
   }
 
   static List<String> suggestionsFor(String name) {
