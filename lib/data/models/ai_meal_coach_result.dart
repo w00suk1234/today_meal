@@ -257,7 +257,7 @@ class AiImprovementReportResult {
 const _defaultCaution = '참고용 식단 제안이며 의학적 조언이 아닙니다.';
 
 String _string(Object? value, String fallback) {
-  final text = '$value'.trim();
+  final text = _cleanText('$value');
   if (value == null || text.isEmpty || text == 'null') {
     return fallback;
   }
@@ -276,8 +276,16 @@ List<String> _stringList(Object? value, List<String> fallback) {
     return fallback;
   }
   final items = value
-      .map((item) => '$item'.trim())
+      .map((item) => _cleanText('$item'))
       .where((item) => item.isNotEmpty && item != 'null')
       .toList();
   return items.isEmpty ? fallback : items;
+}
+
+String _cleanText(String value) {
+  return value
+      .replaceAll(RegExp(r'\s*[\(\[\{（［｛][^\)\]\}）］｝]{1,160}[\)\]\}）］｝]'), '')
+      .replaceAll(RegExp(r'\s{2,}'), ' ')
+      .replaceAllMapped(RegExp(r'\s+([,.!?。])'), (match) => match.group(1)!)
+      .trim();
 }

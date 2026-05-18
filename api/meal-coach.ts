@@ -113,7 +113,7 @@ function stringList(value: unknown, fallback: string[], limit = 4) {
     return fallback;
   }
   const items = value
-    .map((item) => String(item ?? '').trim())
+    .map((item) => cleanText(String(item ?? '')))
     .filter((item) => item.length > 0)
     .slice(0, limit);
   return items.length > 0 ? items : fallback;
@@ -125,8 +125,16 @@ function numberOrFallback(value: unknown, fallback: number) {
 }
 
 function textOrFallback(value: unknown, fallback: string, limit = 180) {
-  const text = String(value ?? '').trim();
+  const text = cleanText(String(value ?? ''));
   return (text || fallback).slice(0, limit);
+}
+
+function cleanText(value: string) {
+  return value
+    .replace(/\s*[\(\[\{（［｛][^\)\]\}）］｝]{1,160}[\)\]\}）］｝]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.!?。])/g, '$1')
+    .trim();
 }
 
 function normalizeMode(value: unknown): CoachMode | null {
@@ -144,6 +152,9 @@ function buildSystemPrompt(mode: CoachMode) {
     'Respond in Korean only.',
     'Tone: supportive, practical, non-judgmental, and short enough for mobile cards.',
     'Do not imply the user must fill remaining calories.',
+    'Never use parentheses, brackets, or meta explanations in user-facing text.',
+    'Do not write internal notes such as "think of this as a guide" inside the answer.',
+    'Prefer direct menu names instead of alternatives in parentheses.',
     'Do not give medical diagnosis, treatment, or clinical advice.',
     'Treat BMI and weight as reference indicators only.',
     'Do not encourage extreme dieting, fasting, or rapid weight loss.',
@@ -165,6 +176,8 @@ function buildUserPrompt(mode: CoachMode, body: any) {
     '아래 JSON 요약 데이터만 보고 앱 카드용 응답을 만들어주세요.',
     '원본 식단 전체가 아니라 요약값만 제공됩니다.',
     '숫자가 비어 있거나 0이면 단정하지 말고 기록이 더 필요하다고 표현하세요.',
+    '사용자에게 그대로 보이는 문장이므로 괄호, 대괄호, 내부 설명 같은 메모를 쓰지 마세요.',
+    '남은 칼로리를 채우라는 표현 대신 참고 목표와 현재 기록 흐름을 말해주세요.',
     JSON.stringify(payload),
   ].join('\n\n');
 }
