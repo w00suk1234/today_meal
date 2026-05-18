@@ -759,13 +759,6 @@ class _WeightTrendCard extends StatelessWidget {
                   ? '키와 몸무게 입력 필요'
                   : '${latestBmi.toStringAsFixed(1)} · 참고용',
             ),
-            if (totalDiff != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                '전체 기록 기준 ${totalDiff >= 0 ? '+' : ''}${totalDiff.toStringAsFixed(1)}kg 변화',
-                style: AppTextStyles.caption,
-              ),
-            ],
           ],
         ],
       ),

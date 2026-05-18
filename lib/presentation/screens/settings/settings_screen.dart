@@ -47,8 +47,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _heightController.text = profile.heightCm.toStringAsFixed(0);
     _weightController.text = profile.weightKg.toStringAsFixed(1);
     _targetWeightController.text = profile.targetWeightKg.toStringAsFixed(1);
-    _ageController.text =
-        profile.effectiveAgeYears > 0 ? profile.effectiveAgeYears.toString() : '';
+    _ageController.text = profile.effectiveAgeYears > 0
+        ? profile.effectiveAgeYears.toString()
+        : '';
     _birthDate = profile.birthDate;
     _gender = profile.gender;
     _activityLevel = profile.activityLevel;
@@ -78,16 +79,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         const AppPageHeader(
           title: '설정',
-          subtitle: '프로필과 건강 목표를 관리해요',
+          subtitle: '내 기준을 저장해 AI 식단 코치가 더 자연스럽게 참고해요',
           icon: Icons.settings_outlined,
         ),
         _ProfileCard(
-          nickname: _nicknameController.text.trim().isEmpty
-              ? '오늘식단 사용자'
-              : _nicknameController.text.trim(),
-          goalType: _goalLabel(_goalType),
+          nickname: _nicknameController.text.trim(),
+          goalLabel: _goalLabel(_goalType),
+          activityLabel: _activityLabel(_activityLevel),
+          currentWeightKg: current.weightKg,
+          targetWeightKg: current.targetWeightKg,
+          ageYears: age,
         ),
-        const SectionHeader(title: '몸상태 요약'),
+        const SectionHeader(
+          title: '몸상태 요약',
+          subtitle: '아래 입력값을 기준으로 참고 지표를 계산해요',
+        ),
         Row(
           children: [
             Expanded(
@@ -112,13 +118,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-        const SectionHeader(title: '기본 건강 정보'),
+        const SectionHeader(
+          title: '내 몸 기준',
+          subtitle: 'AI 플랜과 권장 섭취량 계산에 쓰이는 기본 정보예요',
+        ),
         AppCard(
           child: Column(
             children: [
               TextField(
                 controller: _nicknameController,
-                decoration: const InputDecoration(labelText: '닉네임'),
+                decoration: const InputDecoration(
+                  labelText: '닉네임',
+                  hintText: '예: 우석',
+                  helperText: '홈과 AI 플랜에서 부를 이름이에요',
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
@@ -129,7 +142,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       controller: _heightController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                          labelText: '키', suffixText: 'cm'),
+                        labelText: '키',
+                        suffixText: 'cm',
+                        helperText: 'BMI 계산',
+                      ),
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -139,7 +155,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       controller: _weightController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                          labelText: '현재 체중', suffixText: 'kg'),
+                        labelText: '현재 체중',
+                        suffixText: 'kg',
+                        helperText: '초기 기준값',
+                      ),
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -149,22 +168,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
               TextField(
                 controller: _ageController,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: '나이', suffixText: '세'),
+                decoration: const InputDecoration(
+                  labelText: '나이',
+                  suffixText: '세',
+                  helperText: '권장 섭취량 계산에만 참고해요',
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: _targetWeightController,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: '목표 체중', suffixText: 'kg'),
+                decoration: const InputDecoration(
+                  labelText: '목표 체중',
+                  suffixText: 'kg',
+                  helperText: '무리한 목표보다 꾸준한 흐름을 기준으로 봐요',
+                ),
                 onChanged: (_) => setState(() {}),
               ),
             ],
           ),
         ),
-        const SectionHeader(title: '신체 및 목표 설정'),
+        const SectionHeader(
+          title: '생활 패턴과 목표',
+          subtitle: '성별, 활동량, 목표에 따라 하루 참고 섭취량이 달라져요',
+        ),
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,62 +411,166 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   static String _goalLabel(String type) {
     return switch (type) {
-      'loss' => '감량 목표',
-      'gain' => '증량 목표',
-      _ => '유지 목표',
+      'loss' => '천천히 감량',
+      'gain' => '건강하게 증량',
+      _ => '현재 리듬 유지',
+    };
+  }
+
+  static String _activityLabel(String type) {
+    return switch (type) {
+      'sedentary' => '활동 적음',
+      'moderate' => '보통 활동',
+      'active' => '활동 많은 편',
+      'veryActive' => '매우 활동적',
+      _ => '가벼운 활동',
     };
   }
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.nickname, required this.goalType});
+  const _ProfileCard({
+    required this.nickname,
+    required this.goalLabel,
+    required this.activityLabel,
+    required this.currentWeightKg,
+    required this.targetWeightKg,
+    required this.ageYears,
+  });
 
   final String nickname;
-  final String goalType;
+  final String goalLabel;
+  final String activityLabel;
+  final double currentWeightKg;
+  final double targetWeightKg;
+  final int ageYears;
 
   @override
   Widget build(BuildContext context) {
+    final hasNickname = nickname.trim().isNotEmpty;
+    final hasWeightPlan = currentWeightKg > 0 && targetWeightKg > 0;
+    final displayName = hasNickname ? nickname.trim() : '닉네임을 정해 주세요';
+    final supportText = hasNickname
+        ? '$displayName님 기준으로 식단 목표를 맞춰요'
+        : '저장하면 홈과 AI 플랜에 이름이 반영돼요';
+    final journeyText = hasWeightPlan
+        ? '${currentWeightKg.toStringAsFixed(1)}kg → ${targetWeightKg.toStringAsFixed(1)}kg'
+        : '키와 몸무게를 입력하면 AI 플랜이 더 정확해져요';
+
     return AppCard(
-      child: Row(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Stack(
+          Row(
             children: [
-              Container(
-                width: 66,
-                height: 66,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [
-                    AppColors.primarySoft,
-                    AppColors.creamBackground
-                  ]),
-                ),
-                child: const Icon(Icons.person_rounded,
-                    color: AppColors.primary, size: 34),
+              Stack(
+                children: [
+                  Container(
+                    width: 66,
+                    height: 66,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primarySoft,
+                          AppColors.creamBackground,
+                        ],
+                      ),
+                    ),
+                    child: Icon(
+                      hasNickname ? Icons.person_rounded : Icons.edit_outlined,
+                      color: AppColors.primary,
+                      size: 34,
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color:
+                            hasNickname ? AppColors.primary : AppColors.orange,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        hasNickname
+                            ? Icons.check_rounded
+                            : Icons.priority_high_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: const BoxDecoration(
-                      color: AppColors.primary, shape: BoxShape.circle),
-                  child: const Icon(Icons.check, color: Colors.white, size: 14),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(supportText, style: AppTextStyles.caption),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        AppTag(
+                          label: goalLabel,
+                          icon: Icons.flag_outlined,
+                          color: AppColors.primary,
+                        ),
+                        AppTag(
+                          label: activityLabel,
+                          icon: Icons.directions_walk_rounded,
+                          color: AppColors.teal,
+                        ),
+                        if (ageYears > 0)
+                          AppTag(
+                            label: '$ageYears세',
+                            icon: Icons.cake_outlined,
+                            color: AppColors.orange,
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceTint,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
               children: [
-                Text(nickname,
-                    style: const TextStyle(
-                        fontSize: 19, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 5),
-                Text(goalType, style: AppTextStyles.caption),
+                const Icon(
+                  Icons.route_outlined,
+                  color: AppColors.primary,
+                  size: 19,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    journeyText,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
               ],
             ),
           ),

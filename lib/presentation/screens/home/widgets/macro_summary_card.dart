@@ -49,15 +49,10 @@ class MacroSummaryCard extends StatelessWidget {
                     Text(
                       hasMacroData ? '비율' : '대기',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 19,
                         fontWeight: FontWeight.w900,
                         color: AppColors.textPrimary,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasMacroData ? '탄단지' : '기록 필요',
-                      style: AppTextStyles.caption,
                     ),
                   ],
                 ),
