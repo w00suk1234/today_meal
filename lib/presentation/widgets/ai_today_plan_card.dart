@@ -89,7 +89,7 @@ class AiTodayPlanCard extends StatelessWidget {
             _SuggestionBlock(plan.nextMealSuggestion),
             const SizedBox(height: 12),
             for (final mission in plan.missions.take(2))
-              _BulletText(text: mission, icon: Icons.check_circle_outline),
+              _ChecklistItem(text: mission),
             const SizedBox(height: 8),
             Text(plan.caution, style: AppTextStyles.caption),
             const SizedBox(height: 12),
@@ -235,22 +235,33 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _BulletText extends StatelessWidget {
-  const _BulletText({required this.text, required this.icon});
+class _ChecklistItem extends StatelessWidget {
+  const _ChecklistItem({required this.text});
 
   final String text;
-  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: AppColors.primary, size: 17),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: AppTextStyles.body)),
+          const Padding(
+            padding: EdgeInsets.only(top: 3),
+            child: Icon(
+              Icons.check_circle_outline_rounded,
+              color: AppColors.primary,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.body.copyWith(height: 1.42),
+            ),
+          ),
         ],
       ),
     );

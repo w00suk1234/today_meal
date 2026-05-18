@@ -79,14 +79,18 @@ class _MacroMini extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-              width: 22,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(999))),
-          const SizedBox(height: 7),
-          Text(label, style: AppTextStyles.caption),
-          const SizedBox(height: 2),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: Text(label, style: AppTextStyles.caption)),
+            ],
+          ),
+          const SizedBox(height: 4),
           Text('${value.toStringAsFixed(0)}g',
               style: const TextStyle(fontWeight: FontWeight.w900)),
         ],

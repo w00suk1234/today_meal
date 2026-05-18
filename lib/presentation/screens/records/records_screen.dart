@@ -55,6 +55,12 @@ class _RecordsScreenState extends State<RecordsScreen> {
               () => _selectedDate = _selectedDate.add(const Duration(days: 1))),
           onPick: _pickDate,
         ),
+        const SectionHeader(title: '빠른 기록'),
+        _QuickRecordActions(
+          onWeight: _showWeightRecordSheet,
+          onExercise: () => _showComingSoon('운동 기록은 다음 단계에서 연결할게요.'),
+          onMedicine: () => _showComingSoon('약 기록은 다음 단계에서 연결할게요.'),
+        ),
         const SectionHeader(title: '오늘의 영양 요약'),
         _RecordSummaryCard(
           totalKcal: summary.totalKcal,
@@ -154,6 +160,128 @@ class _RecordsScreenState extends State<RecordsScreen> {
     if (picked != null) {
       setState(() => _selectedDate = picked);
     }
+  }
+
+  void _showComingSoon(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _showWeightRecordSheet() {
+    final controller = AppScope.of(context);
+    final weightController = TextEditingController(
+      text: controller.latestWeightKg?.toStringAsFixed(1) ?? '',
+    );
+    final memoController = TextEditingController();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        var saving = false;
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            Future<void> save() async {
+              final weight = double.tryParse(weightController.text.trim());
+              if (weight == null || weight < 20 || weight > 300) {
+                ScaffoldMessenger.of(modalContext).showSnackBar(
+                  const SnackBar(content: Text('몸무게는 20~300kg 범위로 입력해 주세요.')),
+                );
+                return;
+              }
+              setModalState(() => saving = true);
+              try {
+                await controller.saveTodayWeightRecord(
+                  weight,
+                  memo: memoController.text.trim().isEmpty
+                      ? '기록 탭에서 입력'
+                      : memoController.text.trim(),
+                );
+                if (modalContext.mounted) {
+                  Navigator.of(modalContext).pop();
+                }
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('오늘 몸무게를 기록했습니다.')),
+                  );
+                }
+              } catch (_) {
+                if (modalContext.mounted) {
+                  ScaffoldMessenger.of(modalContext).showSnackBar(
+                    const SnackBar(content: Text('몸무게 기록 저장에 실패했습니다.')),
+                  );
+                }
+              } finally {
+                if (modalContext.mounted) {
+                  setModalState(() => saving = false);
+                }
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 18,
+                bottom: MediaQuery.viewInsetsOf(modalContext).bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('오늘 몸무게 기록', style: AppTextStyles.section),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '몸무게 변화 추이와 BMI 계산에 사용하는 참고용 기록입니다.',
+                    style: AppTextStyles.caption,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: weightController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: '오늘 몸무게',
+                      suffixText: 'kg',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: memoController,
+                    decoration: const InputDecoration(
+                      labelText: '메모',
+                      hintText: '선택 입력',
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : save,
+                      icon: Icon(
+                        saving
+                            ? Icons.hourglass_empty_rounded
+                            : Icons.check_rounded,
+                        size: 18,
+                      ),
+                      label: Text(saving ? '저장 중...' : '몸무게 저장'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      weightController.dispose();
+      memoController.dispose();
+    });
   }
 
   Future<void> _showEditSheet(MealRecord record) async {
@@ -480,6 +608,97 @@ class _MealGroup {
   final List<MealRecord> records;
 }
 
+class _QuickRecordActions extends StatelessWidget {
+  const _QuickRecordActions({
+    required this.onWeight,
+    required this.onExercise,
+    required this.onMedicine,
+  });
+
+  final VoidCallback onWeight;
+  final VoidCallback onExercise;
+  final VoidCallback onMedicine;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: _QuickRecordButton(
+              label: '몸무게',
+              icon: Icons.monitor_weight_outlined,
+              onTap: onWeight,
+              highlighted: true,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _QuickRecordButton(
+              label: '운동',
+              icon: Icons.fitness_center_rounded,
+              onTap: onExercise,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _QuickRecordButton(
+              label: '약',
+              icon: Icons.medication_outlined,
+              onTap: onMedicine,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickRecordButton extends StatelessWidget {
+  const _QuickRecordButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.highlighted = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = highlighted ? AppColors.primary : AppColors.textSecondary;
+    return SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(
+            color: highlighted
+                ? AppColors.primary.withValues(alpha: 0.28)
+                : AppColors.border,
+          ),
+          backgroundColor: highlighted
+              ? AppColors.primarySoft
+              : AppColors.lightGreenBackground,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+        icon: Icon(icon, size: 17),
+        label: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ),
+    );
+  }
+}
+
 class _RecordSummaryCard extends StatelessWidget {
   const _RecordSummaryCard({
     required this.totalKcal,
@@ -558,14 +777,18 @@ class _SummaryMacro extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-              width: 24,
-              height: 5,
-              decoration: BoxDecoration(
-                  color: color, borderRadius: BorderRadius.circular(999))),
-          const SizedBox(height: 7),
-          Text(label, style: AppTextStyles.caption),
-          const SizedBox(height: 2),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Expanded(child: Text(label, style: AppTextStyles.caption)),
+            ],
+          ),
+          const SizedBox(height: 4),
           Text('${value.toStringAsFixed(0)}g',
               style: const TextStyle(fontWeight: FontWeight.w900)),
         ],

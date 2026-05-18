@@ -311,7 +311,7 @@ class _WeeklyCaloriesChart extends StatelessWidget {
                 ),
               ),
               if (targetKcal > 0)
-                Text('참고 ${targetKcal.round()}kcal',
+                Text('권장 ${targetKcal.round()}kcal',
                     style: AppTextStyles.caption),
             ],
           ),

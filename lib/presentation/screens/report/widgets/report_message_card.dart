@@ -14,21 +14,29 @@ class ReportMessageCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
         color: AppColors.lightGreenBackground,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: const BoxDecoration(
-                  color: AppColors.cardWhite, shape: BoxShape.circle),
-              child: const Icon(Icons.check_circle_outline,
-                  color: AppColors.primary, size: 18),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Container(
+                width: 24,
+                height: 24,
+                decoration: const BoxDecoration(
+                    color: AppColors.cardWhite, shape: BoxShape.circle),
+                child: const Icon(Icons.check_rounded,
+                    color: AppColors.primary, size: 16),
+              ),
             ),
-            const SizedBox(width: 11),
-            Expanded(child: Text(message, style: AppTextStyles.body)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: AppTextStyles.body.copyWith(height: 1.48),
+              ),
+            ),
           ],
         ),
       ),

@@ -72,30 +72,12 @@ class AiImprovementReportCard extends StatelessWidget {
             )
           else ...[
             if (errorMessage != null) _NoticeText(errorMessage!),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ScoreBadge(score: report.score),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        report.title,
-                        style: AppTextStyles.section.copyWith(height: 1.3),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        report.summary,
-                        style: AppTextStyles.body.copyWith(height: 1.45),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            _ReportIntro(
+              score: report.score,
+              title: report.title,
+              summary: report.summary,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
             _SectionList(
               title: '잘한 점',
               items: report.goodPoints,
@@ -169,6 +151,54 @@ class _ScoreBadge extends StatelessWidget {
   }
 }
 
+class _ReportIntro extends StatelessWidget {
+  const _ReportIntro({
+    required this.score,
+    required this.title,
+    required this.summary,
+  });
+
+  final int score;
+  final String title;
+  final String summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreenBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _ScoreBadge(score: score),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.section.copyWith(height: 1.28),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            summary,
+            style: AppTextStyles.body.copyWith(height: 1.55),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionList extends StatelessWidget {
   const _SectionList({
     required this.title,
@@ -202,17 +232,17 @@ class _SectionList extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 9),
+          const SizedBox(height: 10),
           for (final item in items.take(3))
             Padding(
-              padding: const EdgeInsets.only(bottom: 7),
+              padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    width: 5,
-                    height: 5,
-                    margin: const EdgeInsets.only(top: 8, right: 8),
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(top: 8, right: 9),
                     decoration: BoxDecoration(
                       color: color,
                       shape: BoxShape.circle,
@@ -221,7 +251,7 @@ class _SectionList extends StatelessWidget {
                   Expanded(
                     child: Text(
                       item,
-                      style: AppTextStyles.body.copyWith(height: 1.45),
+                      style: AppTextStyles.body.copyWith(height: 1.5),
                     ),
                   ),
                 ],
