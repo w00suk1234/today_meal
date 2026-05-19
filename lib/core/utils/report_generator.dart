@@ -167,5 +167,5 @@ class ReportGenerator {
 
   static String _percent(double ratio) => '${(ratio * 100).round()}%';
 
-  static const _notice = '이 내용은 건강 진단이나 처방이 아닌 식단 기록 참고용 추정 결과입니다.';
+  static const _notice = '참고용 기록 제안이에요. 컨디션에 맞춰 가볍게 선택해 주세요.';
 }

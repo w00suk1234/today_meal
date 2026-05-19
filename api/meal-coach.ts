@@ -159,7 +159,7 @@ function buildSystemPrompt(mode: CoachMode) {
           'The reason field must be around 80 Korean characters or less.',
           'The caution field should be short.',
           'Do not push exercise as mandatory.',
-          'If skippedMealTypes exist or mealCount is low, prefer light walking, stretching, or rest instead of hard exercise.',
+          'If skippedMealTypes exist or mealCount is low, prefer light walking, stretching, or rest instead of intense exercise.',
           'If activityContext already shows enough activity today, suggest light recovery or rest.',
         ]
       : [];
@@ -168,12 +168,14 @@ function buildSystemPrompt(mode: CoachMode) {
     task,
     'Respond in Korean only.',
     'Tone: supportive, practical, non-judgmental, and short enough for mobile cards.',
+    'Use gentle Korean phrasing such as "해봐도 좋아요" and avoid command-like, deficit-labeling, or forced extra-eating wording.',
     'Do not imply the user must fill remaining calories.',
     'Do not subtract exercise calories from food intake calories.',
     'Use activityContext only as reference for today activity level and condition.',
     'Avoid strong wording such as "you exercised so you should eat more".',
     'For activity, keep advice to general lifestyle suggestions like light recovery, hydration, and protein support.',
     'Do not give medical, treatment, or rehabilitation advice based on activity.',
+    'Avoid clinical or healthcare-sounding words in user-facing text.',
     ...exerciseRules,
     'Never use parentheses, brackets, or meta explanations in user-facing text.',
     'Do not write internal notes such as "think of this as a guide" inside the answer.',
@@ -185,7 +187,7 @@ function buildSystemPrompt(mode: CoachMode) {
     'Do not modify or save any meal data. Only provide suggestions.',
     mode === 'exercise_recommendation'
       ? 'Always include a short caution that resting is okay when condition is not good.'
-      : 'Always include the caution exactly as a reference-only food suggestion.',
+      : 'Always include a short reference-only caution without clinical wording.',
   ].join('\n');
 }
 
@@ -202,13 +204,14 @@ function buildUserPrompt(mode: CoachMode, body: any) {
     '원본 식단 전체가 아니라 요약값만 제공됩니다.',
     '숫자가 비어 있거나 0이면 단정하지 말고 기록이 더 필요하다고 표현하세요.',
     'skippedMealTypes는 사용자가 의도적으로 건너뛴 식사이므로 기록 누락으로 판단하지 마세요.',
-    'activityContext는 오늘 활동량 참고용입니다. 운동 칼로리를 섭취 칼로리에서 빼지 마세요.',
-    '오늘 식사 기록이 적거나 굶은 식사가 있으면 강한 운동보다 걷기, 스트레칭, 휴식 위주로 제안하세요.',
-    '이미 운동 기록이 충분하면 추가 운동을 강하게 권하지 말고 가벼운 회복이나 휴식을 제안하세요.',
+    'activityContext는 오늘 활동량 참고용입니다. 운동 기록을 음식 섭취량 계산에 섞지 마세요.',
+    '오늘 식사 기록이 적거나 굶은 식사가 있으면 무리한 운동보다 걷기, 스트레칭, 휴식 위주로 권해주세요.',
+    '이미 운동 기록이 충분하면 추가 운동을 권하기보다 가벼운 회복이나 휴식을 제안하세요.',
     mode === 'exercise_recommendation'
       ? '운동 추천은 제목 한 줄, 이유 1~2문장, 짧은 주의 문구 정도로만 작성하세요.'
       : '식단 제안은 앱 카드에 맞게 짧게 작성하세요.',
     '사용자에게 그대로 보이는 문장이므로 괄호, 대괄호, 내부 설명 같은 메모를 쓰지 마세요.',
+    '명령형, 부족하다는 낙인, 추가 섭취를 강요하는 압박감 있는 표현은 쓰지 마세요.',
     '남은 칼로리를 채우라는 표현 대신 참고 목표와 현재 기록 흐름을 말해주세요.',
     JSON.stringify(payload),
   ].join('\n\n');
@@ -391,7 +394,7 @@ function normalizeTodayPlan(value: any) {
       ['다음 식사에 단백질 식품 하나 포함하기', '오늘 기록을 마무리하기'],
       3,
     ),
-    caution: '참고용 식단 제안이며 의학적 조언이 아닙니다.',
+    caution: '참고용 식단 제안이에요. 컨디션에 맞춰 선택해 주세요.',
   };
 }
 
@@ -400,7 +403,7 @@ function normalizeExerciseRecommendation(value: any) {
     title: textOrFallback(value?.title, '가볍게 걷기 20분', 38),
     reason: textOrFallback(
       value?.reason,
-      '오늘은 강한 운동보다 부담 없는 활동이 좋아요.',
+      '오늘은 가볍게 움직여도 충분해요.',
       90,
     ),
     durationMinutes: Math.max(
@@ -443,7 +446,7 @@ function normalizeImprovementReport(value: any) {
       ['다음 식사에 단백질 식품 하나를 추가해보세요.', '주 2회 이상 몸무게를 기록해보세요.'],
       4,
     ),
-    caution: '참고용 식단 제안이며 의학적 조언이 아닙니다.',
+    caution: '참고용 식단 제안이에요. 컨디션에 맞춰 선택해 주세요.',
   };
 }
 

@@ -65,15 +65,16 @@ class MealTimingAnalyzer {
           _sleepDateTime(lastDinner.effectiveFinishedAt, sleepTime);
       final gap = sleepDateTime.difference(lastDinner.effectiveFinishedAt);
       if (gap.inMinutes < dinnerSleepGapHours * 60) {
-        messages
-            .add('저녁 식사와 취침 예정 시간의 간격이 짧습니다. 소화 시간을 고려해 조금 더 여유를 두는 것이 좋습니다.');
+        messages.add(
+          '저녁 식사와 취침 예정 시간이 가까워요. 속이 불편하다면 조금 더 여유를 두어도 좋아요.',
+        );
       }
     }
 
     if (messages.isEmpty) {
       messages.add('오늘 식사 시간 패턴은 비교적 안정적으로 기록되었습니다.');
     }
-    messages.add('식사 시간 피드백은 의학적 판단이 아닌 생활 습관 참고용입니다.');
+    messages.add('식사 시간 피드백은 생활 습관 참고용이에요.');
     return messages.toSet().toList();
   }
 

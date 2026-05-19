@@ -121,7 +121,7 @@ Future<void> showActivityRecordBottomSheet({
                     const Text('운동 기록하기', style: AppTextStyles.section),
                     const SizedBox(height: 6),
                     const Text(
-                      '섭취 칼로리에서 빼지 않고 오늘 활동 참고용으로만 저장해요.',
+                      '오늘 활동량과 컨디션 참고용으로만 저장해요.',
                       style: AppTextStyles.caption,
                     ),
                     const SizedBox(height: 18),

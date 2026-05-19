@@ -150,7 +150,7 @@ class HomeScreen extends StatelessWidget {
         ),
         const SectionHeader(
           title: '오늘 운동',
-          subtitle: '섭취 칼로리에서 빼지 않고 활동 컨텍스트로만 참고해요',
+          subtitle: '오늘 활동량과 컨디션 참고용으로만 기록해요',
         ),
         _TodayActivityCard(
           activities: todayActivities,
@@ -667,7 +667,7 @@ class _TodayActivityCard extends StatelessWidget {
         ? '가벼운 산책도 오늘 활동 컨텍스트로 남길 수 있어요.'
         : activities.length == 1
             ? 'AI가 오늘 활동량과 컨디션 참고용으로만 사용해요.'
-            : '대표 운동 ${HomeScreen._activityDisplayName(representative!)} · 칼로리 차감은 하지 않아요.';
+            : '대표 운동 ${HomeScreen._activityDisplayName(representative!)} · 활동 참고용이에요.';
 
     return AppCard(
       padding: const EdgeInsets.all(16),

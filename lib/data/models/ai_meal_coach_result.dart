@@ -85,7 +85,7 @@ class AiExerciseRecommendation {
   factory AiExerciseRecommendation.fallback() {
     return const AiExerciseRecommendation(
       title: '가볍게 걷기 20분',
-      reason: '오늘은 강한 운동보다 부담 없는 활동이 좋아요.',
+      reason: '오늘은 가볍게 움직여도 충분해요.',
       durationMinutes: 20,
       intensity: 'light',
       type: 'walk',
@@ -349,7 +349,7 @@ class AiImprovementReportResult {
   }
 }
 
-const _defaultCaution = '참고용 식단 제안이며 의학적 조언이 아닙니다.';
+const _defaultCaution = '참고용 식단 제안이에요. 컨디션에 맞춰 선택해 주세요.';
 
 String _string(Object? value, String fallback) {
   final text = _cleanText('$value');
