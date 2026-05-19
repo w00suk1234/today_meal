@@ -16,19 +16,29 @@ class ActivityRepository {
       return [];
     }
     try {
-      final decoded = jsonDecode(raw) as List<dynamic>;
-      return _sort(
-        decoded
-            .map(
-                (item) => ActivityRecord.fromJson(item as Map<String, dynamic>))
-            .where(
-              (record) =>
-                  record.id.isNotEmpty &&
-                  record.dateKey.isNotEmpty &&
-                  record.durationMinutes > 0,
-            )
-            .toList(),
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return [];
+      }
+      final records = <ActivityRecord>[];
+      for (final item in decoded) {
+        if (item is! Map) {
+          continue;
+        }
+        try {
+          final record = ActivityRecord.fromJson(
+            Map<String, dynamic>.from(item),
+          );
+          if (record.id.isNotEmpty &&
+              record.dateKey.isNotEmpty &&
+              record.durationMinutes > 0) {
+            records.add(record);
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+      return _sort(records);
     } catch (_) {
       return [];
     }

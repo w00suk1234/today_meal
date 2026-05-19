@@ -31,6 +31,10 @@ class AiMealCoachCacheRepository {
     );
   }
 
+  Future<void> clearTodayPlan(String dateKey) async {
+    await _storage.setString('$_todayPlanPrefix$dateKey', '');
+  }
+
   Future<AiImprovementReportResult?> getImprovementReport(
     String dateKey,
   ) async {

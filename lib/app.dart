@@ -270,6 +270,8 @@ class TodayMealController extends ChangeNotifier {
   Map<String, dynamic> activitySummaryFor(String dateKey) {
     final records = activitiesFor(dateKey);
     final types = records.map((record) => record.type).toSet().toList();
+    final displayTypes =
+        records.map(_activityDisplayName).toSet().take(4).toList();
     return {
       'activityCount': records.length,
       'totalDurationMinutes': records.fold<int>(
@@ -277,6 +279,7 @@ class TodayMealController extends ChangeNotifier {
         (sum, record) => sum + record.durationMinutes,
       ),
       'types': types,
+      'displayTypes': displayTypes,
       'mainIntensity': _mainActivityIntensity(records),
       'hasActivityMemo': records.any(
         (record) => record.memo != null && record.memo!.trim().isNotEmpty,
@@ -433,12 +436,23 @@ class TodayMealController extends ChangeNotifier {
     }
     await activityRepository.add(record);
     activities = await activityRepository.getAll();
+    await _clearTodayPlanCacheFor(record.dateKey);
     notifyListeners();
   }
 
   Future<void> removeActivity(String id) async {
+    String? changedDateKey;
+    for (final activity in activities) {
+      if (activity.id == id) {
+        changedDateKey = activity.dateKey;
+        break;
+      }
+    }
     await activityRepository.delete(id);
     activities = await activityRepository.getAll();
+    if (changedDateKey != null) {
+      await _clearTodayPlanCacheFor(changedDateKey);
+    }
     notifyListeners();
   }
 
@@ -762,6 +776,17 @@ class TodayMealController extends ChangeNotifier {
     mealStatuses = await mealStatusRepository.getAll();
   }
 
+  Future<void> _clearTodayPlanCacheFor(String dateKey) async {
+    final todayDateKey = AppDateUtils.dateKey(DateTime.now());
+    if (dateKey != todayDateKey) {
+      return;
+    }
+    await aiMealCoachCacheRepository.clearTodayPlan(dateKey);
+    todayAiPlan = null;
+    todayAiPlanDateKey = dateKey;
+    todayAiPlanError = null;
+  }
+
   String _mainActivityIntensity(List<ActivityRecord> records) {
     if (records.isEmpty) {
       return 'none';
@@ -773,6 +798,20 @@ class TodayMealController extends ChangeNotifier {
       return 'moderate';
     }
     return 'light';
+  }
+
+  String _activityDisplayName(ActivityRecord record) {
+    if (record.type == 'etc') {
+      final customName = record.customTypeName?.trim();
+      return customName == null || customName.isEmpty ? '기타 운동' : customName;
+    }
+    return switch (record.type) {
+      'walk' => '걷기',
+      'running' => '러닝',
+      'strength' => '근력',
+      'cycling' => '자전거',
+      _ => '기타 운동',
+    };
   }
 }
 

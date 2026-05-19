@@ -20,7 +20,7 @@ class AiNextMealSuggestion {
   factory AiNextMealSuggestion.fromJson(Map<String, dynamic> json) {
     return AiNextMealSuggestion(
       mealType: _string(json['mealType'], 'dinner'),
-      title: _string(json['title'], '단백질 포함 한식 메뉴'),
+      title: _string(json['title'], '단백질이 포함된 저녁 메뉴'),
       reason: _string(json['reason'], '부담 없이 균형을 보완하기 좋은 선택입니다.'),
       estimatedKcal: _int(json['estimatedKcal'], 520),
       proteinG: _int(json['proteinG'], 30),
@@ -42,6 +42,49 @@ class AiNextMealSuggestion {
   }
 }
 
+class AiExerciseRecommendation {
+  const AiExerciseRecommendation({
+    required this.title,
+    required this.reason,
+    required this.durationMinutes,
+    required this.intensity,
+    required this.type,
+    required this.caution,
+  });
+
+  final String title;
+  final String reason;
+  final int durationMinutes;
+  final String intensity;
+  final String type;
+  final String caution;
+
+  factory AiExerciseRecommendation.fromJson(Map<String, dynamic> json) {
+    return AiExerciseRecommendation(
+      title: _string(json['title'], '가볍게 걷기 20분'),
+      reason: _string(
+        json['reason'],
+        '오늘 기록을 참고하면 부담 없는 활동 정도가 좋아요.',
+      ),
+      durationMinutes: _int(json['durationMinutes'], 20).clamp(0, 240).toInt(),
+      intensity: _string(json['intensity'], 'light'),
+      type: _string(json['type'], 'walk'),
+      caution: _string(json['caution'], '컨디션이 좋지 않으면 쉬어도 괜찮아요.'),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'reason': reason,
+      'durationMinutes': durationMinutes,
+      'intensity': intensity,
+      'type': type,
+      'caution': caution,
+    };
+  }
+}
+
 class AiTodayPlanResult {
   const AiTodayPlanResult({
     required this.title,
@@ -51,6 +94,7 @@ class AiTodayPlanResult {
     required this.nextMealSuggestion,
     required this.missions,
     required this.caution,
+    this.exerciseRecommendation,
     this.isFallback = false,
     this.model,
     this.createdAt,
@@ -63,17 +107,19 @@ class AiTodayPlanResult {
   final AiNextMealSuggestion nextMealSuggestion;
   final List<String> missions;
   final String caution;
+  final AiExerciseRecommendation? exerciseRecommendation;
   final bool isFallback;
   final String? model;
   final DateTime? createdAt;
 
   factory AiTodayPlanResult.fromJson(Map<String, dynamic> json) {
     final suggestion = json['nextMealSuggestion'];
+    final exerciseRecommendation = json['exerciseRecommendation'];
     return AiTodayPlanResult(
       title: _string(json['title'], '오늘은 균형을 조금 보완해보세요.'),
       summary: _string(
         json['summary'],
-        '현재 기록을 기준으로 무리하지 않고 단백질이 포함된 식사를 선택해보세요.',
+        '현재 기록 기준으로 무리하지 않고 단백질이 포함된 식사를 선택해보세요.',
       ),
       statusLabel: _string(json['statusLabel'], '균형 보완'),
       recommendedFocus: _stringList(json['recommendedFocus'], const ['단백질 보완']),
@@ -82,9 +128,12 @@ class AiTodayPlanResult {
           : AiNextMealSuggestion.fromJson(<String, dynamic>{}),
       missions: _stringList(json['missions'], const [
         '다음 식사에 단백질 식품 하나 포함하기',
-        '오늘 기록을 마무리하기',
+        '오늘 기록을 가볍게 마무리하기',
       ]),
       caution: _string(json['caution'], _defaultCaution),
+      exerciseRecommendation: exerciseRecommendation is Map<String, dynamic>
+          ? AiExerciseRecommendation.fromJson(exerciseRecommendation)
+          : null,
       isFallback: json['isFallback'] == true,
       model: json['model'] as String?,
       createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
@@ -94,12 +143,12 @@ class AiTodayPlanResult {
   factory AiTodayPlanResult.fallback() {
     return const AiTodayPlanResult(
       title: 'AI 플랜을 불러오지 못했어요',
-      summary: '현재 기록 기준으로는 무리하지 않고 단백질이 포함된 식사를 선택해 보세요.',
+      summary: '현재 기록 기준으로 무리하지 않고 단백질이 포함된 식사를 선택해 보세요.',
       statusLabel: '기본 제안',
       recommendedFocus: ['단백질 포함', '무리 없는 선택'],
       nextMealSuggestion: AiNextMealSuggestion(
         mealType: 'dinner',
-        title: '단백질이 포함된 가벼운 한식',
+        title: '단백질이 포함된 가벼운 저녁',
         reason: '현재 기록만으로도 부담 없이 균형을 보완하기 좋은 방향입니다.',
         estimatedKcal: 520,
         proteinG: 30,
@@ -108,6 +157,14 @@ class AiTodayPlanResult {
       ),
       missions: ['다음 식사에 단백질 식품 하나 포함하기', '오늘 기록을 가볍게 마무리하기'],
       caution: _defaultCaution,
+      exerciseRecommendation: AiExerciseRecommendation(
+        title: '가볍게 걷기 20분',
+        reason: '오늘 기록을 참고하면 강한 운동보다 부담 없는 활동이 좋아요.',
+        durationMinutes: 20,
+        intensity: 'light',
+        type: 'walk',
+        caution: '컨디션이 좋지 않으면 쉬어도 괜찮아요.',
+      ),
       isFallback: true,
       createdAt: null,
     );
@@ -117,6 +174,7 @@ class AiTodayPlanResult {
     bool? isFallback,
     String? model,
     DateTime? createdAt,
+    AiExerciseRecommendation? exerciseRecommendation,
   }) {
     return AiTodayPlanResult(
       title: title,
@@ -126,6 +184,8 @@ class AiTodayPlanResult {
       nextMealSuggestion: nextMealSuggestion,
       missions: missions,
       caution: caution,
+      exerciseRecommendation:
+          exerciseRecommendation ?? this.exerciseRecommendation,
       isFallback: isFallback ?? this.isFallback,
       model: model ?? this.model,
       createdAt: createdAt ?? this.createdAt,
@@ -142,6 +202,7 @@ class AiTodayPlanResult {
       'nextMealSuggestion': nextMealSuggestion.toJson(),
       'missions': missions,
       'caution': caution,
+      'exerciseRecommendation': exerciseRecommendation?.toJson(),
       'isFallback': isFallback,
       'model': model,
       'createdAt': createdAt?.toIso8601String(),
@@ -182,11 +243,11 @@ class AiImprovementReportResult {
       score: _int(json['score'], 70).clamp(0, 100).toInt(),
       summary: _string(
         json['summary'],
-        '최근 기록을 기준으로 식사 기록 습관과 단백질 섭취를 함께 확인해보세요.',
+        '최근 기록을 기준으로 식사 기록 습관과 단백질 섭취를 함께 확인해 보세요.',
       ),
       goodPoints: _stringList(json['goodPoints'], const ['식단 기록을 남기고 있어요.']),
       improvementPoints: _stringList(json['improvementPoints'], const [
-        '단백질과 수분 섭취를 함께 확인해보세요.',
+        '단백질과 수분 섭취를 함께 확인해 보세요.',
       ]),
       patterns: _stringList(json['patterns'], const [
         '기록이 더 쌓이면 반복 패턴을 더 정확히 볼 수 있어요.',
@@ -208,7 +269,7 @@ class AiImprovementReportResult {
       score: 0,
       summary: '최근 기록을 기준으로 식사 기록을 꾸준히 남기고 단백질과 수분 섭취를 함께 확인해 보세요.',
       goodPoints: ['기록을 남기는 것 자체가 좋은 출발이에요.'],
-      improvementPoints: ['단백질과 수분 섭취를 함께 확인해보세요.'],
+      improvementPoints: ['단백질과 수분 섭취를 함께 확인해 보세요.'],
       patterns: ['기록이 더 쌓이면 반복 패턴을 더 정확히 볼 수 있어요.'],
       nextActions: ['다음 식사에 단백질 식품 하나를 추가해보세요.', '주 2회 이상 몸무게를 기록해보세요.'],
       caution: _defaultCaution,
@@ -284,8 +345,9 @@ List<String> _stringList(Object? value, List<String> fallback) {
 
 String _cleanText(String value) {
   return value
-      .replaceAll(RegExp(r'\s*[\(\[\{（［｛][^\)\]\}）］｝]{1,160}[\)\]\}）］｝]'), '')
+      .replaceAll(RegExp(r'\s*[\(\[\{][^\)\]\}]{1,160}[\)\]\}]'), '')
+      .replaceAll(RegExp(r'\s*（[^）]{1,160}）'), '')
       .replaceAll(RegExp(r'\s{2,}'), ' ')
-      .replaceAllMapped(RegExp(r'\s+([,.!?。])'), (match) => match.group(1)!)
+      .replaceAllMapped(RegExp(r'\s+([,.!?])'), (match) => match.group(1)!)
       .trim();
 }

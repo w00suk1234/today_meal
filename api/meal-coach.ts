@@ -157,6 +157,10 @@ function buildSystemPrompt(mode: CoachMode) {
     'Avoid strong wording such as "you exercised so you should eat more".',
     'For activity, keep advice to general lifestyle suggestions like light recovery, hydration, and protein support.',
     'Do not give medical, treatment, or rehabilitation advice based on activity.',
+    'Include exerciseRecommendation for today_plan as a short general lifestyle activity suggestion.',
+    'If skippedMealTypes exist or mealCount is low, prefer light walking, stretching, or rest instead of hard exercise.',
+    'If activityContext already shows enough activity today, do not strongly suggest extra exercise.',
+    'Exercise advice must mention that resting is okay when the user feels unwell.',
     'Never use parentheses, brackets, or meta explanations in user-facing text.',
     'Do not write internal notes such as "think of this as a guide" inside the answer.',
     'Prefer direct menu names instead of alternatives in parentheses.',
@@ -182,6 +186,9 @@ function buildUserPrompt(mode: CoachMode, body: any) {
     '원본 식단 전체가 아니라 요약값만 제공됩니다.',
     '숫자가 비어 있거나 0이면 단정하지 말고 기록이 더 필요하다고 표현하세요.',
     'skippedMealTypes는 사용자가 의도적으로 건너뛴 식사이므로 기록 누락으로 판단하지 마세요.',
+    'activityContext는 오늘 활동량 참고용입니다. 운동 칼로리를 섭취 칼로리에서 빼지 마세요.',
+    '오늘 식사 기록이 적거나 굶은 식사가 있으면 강한 운동보다 걷기, 스트레칭, 휴식 위주로 제안하세요.',
+    '이미 운동 기록이 충분하면 추가 운동을 강하게 권하지 말고 가벼운 회복이나 휴식을 제안하세요.',
     '사용자에게 그대로 보이는 문장이므로 괄호, 대괄호, 내부 설명 같은 메모를 쓰지 마세요.',
     '남은 칼로리를 채우라는 표현 대신 참고 목표와 현재 기록 흐름을 말해주세요.',
     JSON.stringify(payload),
@@ -211,6 +218,23 @@ const nextMealSuggestionSchema = {
   additionalProperties: false,
 };
 
+const exerciseRecommendationSchema = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    reason: { type: 'string' },
+    durationMinutes: { type: 'integer', minimum: 0, maximum: 240 },
+    intensity: { type: 'string', enum: ['light', 'moderate', 'hard'] },
+    type: {
+      type: 'string',
+      enum: ['walk', 'running', 'strength', 'cycling', 'stretching', 'rest', 'etc'],
+    },
+    caution: { type: 'string' },
+  },
+  required: ['title', 'reason', 'durationMinutes', 'intensity', 'type', 'caution'],
+  additionalProperties: false,
+};
+
 const todayPlanSchema = {
   type: 'object',
   properties: {
@@ -225,6 +249,7 @@ const todayPlanSchema = {
       maxItems: 3,
     },
     nextMealSuggestion: nextMealSuggestionSchema,
+    exerciseRecommendation: exerciseRecommendationSchema,
     missions: {
       type: 'array',
       items: { type: 'string' },
@@ -240,6 +265,7 @@ const todayPlanSchema = {
     'statusLabel',
     'recommendedFocus',
     'nextMealSuggestion',
+    'exerciseRecommendation',
     'missions',
     'caution',
   ],
@@ -314,6 +340,7 @@ function collectOutputText(response: any) {
 
 function normalizeTodayPlan(value: any) {
   const suggestion = value?.nextMealSuggestion ?? {};
+  const exercise = value?.exerciseRecommendation ?? {};
   return {
     type: 'today_plan',
     title: textOrFallback(value?.title, '오늘은 균형을 조금 보완해보세요.', 80),
@@ -336,6 +363,25 @@ function normalizeTodayPlan(value: any) {
       proteinG: Math.round(numberOrFallback(suggestion?.proteinG, 30)),
       carbsG: Math.round(numberOrFallback(suggestion?.carbsG, 55)),
       fatG: Math.round(numberOrFallback(suggestion?.fatG, 15)),
+    },
+    exerciseRecommendation: {
+      title: textOrFallback(exercise?.title, '가볍게 걷기 20분', 70),
+      reason: textOrFallback(
+        exercise?.reason,
+        '오늘 기록을 참고하면 강한 운동보다 부담 없는 활동이 좋아요.',
+        140,
+      ),
+      durationMinutes: Math.max(
+        0,
+        Math.min(240, Math.round(numberOrFallback(exercise?.durationMinutes, 20))),
+      ),
+      intensity: textOrFallback(exercise?.intensity, 'light', 20),
+      type: textOrFallback(exercise?.type, 'walk', 24),
+      caution: textOrFallback(
+        exercise?.caution,
+        '어지럽거나 컨디션이 좋지 않으면 쉬어도 괜찮아요.',
+        100,
+      ),
     },
     missions: stringList(
       value?.missions,

@@ -6,6 +6,7 @@ class ActivityRecord {
     required this.durationMinutes,
     required this.intensity,
     required this.createdAt,
+    this.customTypeName,
     this.estimatedKcal,
     this.memo,
   });
@@ -15,6 +16,7 @@ class ActivityRecord {
   final String type;
   final int durationMinutes;
   final String intensity;
+  final String? customTypeName;
   final double? estimatedKcal;
   final String? memo;
   final DateTime createdAt;
@@ -25,6 +27,7 @@ class ActivityRecord {
     String? type,
     int? durationMinutes,
     String? intensity,
+    String? customTypeName,
     double? estimatedKcal,
     String? memo,
     DateTime? createdAt,
@@ -35,6 +38,7 @@ class ActivityRecord {
       type: type ?? this.type,
       durationMinutes: durationMinutes ?? this.durationMinutes,
       intensity: intensity ?? this.intensity,
+      customTypeName: customTypeName ?? this.customTypeName,
       estimatedKcal: estimatedKcal ?? this.estimatedKcal,
       memo: memo ?? this.memo,
       createdAt: createdAt ?? this.createdAt,
@@ -59,15 +63,48 @@ class ActivityRecord {
       return double.tryParse('$value');
     }
 
+    String cleanString(Object? value) {
+      final text = value is String ? value.trim() : '';
+      return text == 'null' ? '' : text;
+    }
+
+    String? cleanNullableString(Object? value) {
+      final text = cleanString(value);
+      return text.isEmpty ? null : text;
+    }
+
+    String normalizeType(Object? value) {
+      final text = cleanString(value);
+      return switch (text) {
+        'walk' || 'running' || 'strength' || 'cycling' || 'etc' => text,
+        _ => 'etc',
+      };
+    }
+
+    String normalizeIntensity(Object? value) {
+      final text = cleanString(value);
+      return switch (text) {
+        'light' || 'moderate' || 'hard' => text,
+        _ => 'moderate',
+      };
+    }
+
+    final createdAt =
+        DateTime.tryParse('${json['createdAt'] ?? ''}') ?? DateTime.now();
+    final dateKey = cleanString(json['dateKey']).isNotEmpty
+        ? cleanString(json['dateKey'])
+        : createdAt.toIso8601String().substring(0, 10);
+
     return ActivityRecord(
-      id: json['id'] as String? ?? '',
-      dateKey: json['dateKey'] as String? ?? '',
-      type: json['type'] as String? ?? 'etc',
+      id: cleanString(json['id']),
+      dateKey: dateKey,
+      type: normalizeType(json['type']),
       durationMinutes: toInt(json['durationMinutes']),
-      intensity: json['intensity'] as String? ?? 'moderate',
+      intensity: normalizeIntensity(json['intensity']),
+      customTypeName: cleanNullableString(json['customTypeName']),
       estimatedKcal: toNullableDouble(json['estimatedKcal']),
-      memo: json['memo'] as String?,
-      createdAt: DateTime.tryParse('${json['createdAt']}') ?? DateTime.now(),
+      memo: cleanNullableString(json['memo']),
+      createdAt: createdAt,
     );
   }
 
@@ -78,6 +115,7 @@ class ActivityRecord {
       'type': type,
       'durationMinutes': durationMinutes,
       'intensity': intensity,
+      'customTypeName': customTypeName,
       'estimatedKcal': estimatedKcal,
       'memo': memo,
       'createdAt': createdAt.toIso8601String(),

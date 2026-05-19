@@ -8,6 +8,7 @@ import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/health_calculator.dart';
 import '../../../core/utils/meal_timing_analyzer.dart';
 import '../../../data/models/activity_record.dart';
+import '../../../data/models/ai_meal_coach_result.dart';
 import '../../../data/models/meal_record.dart';
 import '../../widgets/ai_suggestion_card.dart';
 import '../../widgets/ai_today_plan_card.dart';
@@ -173,8 +174,17 @@ class HomeScreen extends StatelessWidget {
         ),
         _TodayActivityCard(
           activities: todayActivities,
+          exerciseRecommendation:
+              controller.cachedTodayAiPlan?.exerciseRecommendation,
+          recommendationLoading: controller.isGeneratingTodayAiPlan,
           onAdd: () => _showActivityRecordSheet(context),
           onDelete: (activity) => _confirmDeleteActivity(context, activity),
+          onGenerateRecommendation: () => controller.generateTodayAiPlan(
+            forceRefresh: controller.cachedTodayAiPlan != null &&
+                controller.cachedTodayAiPlan?.exerciseRecommendation == null,
+          ),
+          onRefreshRecommendation: () =>
+              controller.generateTodayAiPlan(forceRefresh: true),
         ),
         const SectionHeader(title: 'AI 오늘의 플랜'),
         AiTodayPlanCard(
@@ -456,53 +466,55 @@ class HomeScreen extends StatelessWidget {
                 top: 18,
                 bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('오늘 몸무게 기록', style: AppTextStyles.section),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'BMI와 변화 추이를 위한 참고용 기록입니다. 같은 날짜는 기존 기록을 수정해요.',
-                    style: AppTextStyles.caption,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: weightController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('오늘 몸무게 기록', style: AppTextStyles.section),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'BMI와 변화 추이를 위한 참고용 기록입니다. 같은 날짜는 기존 기록을 수정해요.',
+                      style: AppTextStyles.caption,
                     ),
-                    decoration: const InputDecoration(
-                      labelText: '오늘 몸무게',
-                      suffixText: 'kg',
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: weightController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: '오늘 몸무게',
+                        suffixText: 'kg',
+                      ),
+                      autofocus: true,
+                      onSubmitted: (_) {
+                        if (!saving) {
+                          save();
+                        }
+                      },
                     ),
-                    autofocus: true,
-                    onSubmitted: (_) {
-                      if (!saving) {
-                        save();
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: memoController,
-                    decoration: const InputDecoration(
-                      labelText: '메모',
-                      hintText: '선택 입력',
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: memoController,
+                      decoration: const InputDecoration(
+                        labelText: '메모',
+                        hintText: '선택 입력',
+                      ),
+                      maxLength: 60,
                     ),
-                    maxLength: 60,
-                  ),
-                  const SizedBox(height: 6),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: FilledButton.icon(
-                      onPressed: saving ? null : save,
-                      icon: const Icon(Icons.check_rounded, size: 18),
-                      label: Text(saving ? '저장 중...' : '저장'),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton.icon(
+                        onPressed: saving ? null : save,
+                        icon: const Icon(Icons.check_rounded, size: 18),
+                        label: Text(saving ? '저장 중...' : '저장'),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -520,6 +532,7 @@ class HomeScreen extends StatelessWidget {
     var selectedType = 'walk';
     var selectedDuration = 30;
     var selectedIntensity = 'moderate';
+    final customTypeNameController = TextEditingController();
     final customDurationController = TextEditingController();
     final memoController = TextEditingController();
 
@@ -546,12 +559,17 @@ class HomeScreen extends StatelessWidget {
               }
 
               final now = DateTime.now();
+              final customTypeName = customTypeNameController.text.trim();
               final record = ActivityRecord(
                 id: 'activity_${now.microsecondsSinceEpoch}',
                 dateKey: AppDateUtils.dateKey(now),
                 type: selectedType,
                 durationMinutes: duration,
                 intensity: selectedIntensity,
+                customTypeName:
+                    selectedType == 'etc' && customTypeName.isNotEmpty
+                        ? customTypeName
+                        : null,
                 memo: memoController.text.trim().isEmpty
                     ? null
                     : memoController.text.trim(),
@@ -588,135 +606,150 @@ class HomeScreen extends StatelessWidget {
                 top: 18,
                 bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('운동 기록하기', style: AppTextStyles.section),
-                  const SizedBox(height: 6),
-                  const Text(
-                    '운동은 섭취 칼로리에서 빼지 않고 오늘 활동량 참고용으로만 저장해요.',
-                    style: AppTextStyles.caption,
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    '운동 종류',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final option in _activityTypeOptions)
-                        ChoiceChip(
-                          label: Text(option.label),
-                          selected: selectedType == option.value,
-                          onSelected: (_) =>
-                              setModalState(() => selectedType = option.value),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('운동 기록하기', style: AppTextStyles.section),
+                    const SizedBox(height: 6),
+                    const Text(
+                      '운동은 섭취 칼로리에서 빼지 않고 오늘 활동량 참고용으로만 저장해요.',
+                      style: AppTextStyles.caption,
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '운동 종류',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in _activityTypeOptions)
+                          ChoiceChip(
+                            label: Text(option.label),
+                            selected: selectedType == option.value,
+                            onSelected: (_) => setModalState(
+                                () => selectedType = option.value),
+                          ),
+                      ],
+                    ),
+                    if (selectedType == 'etc') ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: customTypeNameController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: '운동 이름',
+                          hintText: '스트레칭, 등산, 계단 오르기, 축구 등',
                         ),
+                        maxLength: 24,
+                      ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '운동 시간',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final option in const [
-                        (label: '10분', value: 10),
-                        (label: '20분', value: 20),
-                        (label: '30분', value: 30),
-                        (label: '60분', value: 60),
-                        (label: '직접 입력', value: 0),
-                      ])
-                        ChoiceChip(
-                          label: Text(option.label),
-                          selected: selectedDuration == option.value,
-                          onSelected: (_) => setModalState(
-                            () => selectedDuration = option.value,
+                    const SizedBox(height: 16),
+                    const Text(
+                      '운동 시간',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in const [
+                          (label: '10분', value: 10),
+                          (label: '20분', value: 20),
+                          (label: '30분', value: 30),
+                          (label: '60분', value: 60),
+                          (label: '직접 입력', value: 0),
+                        ])
+                          ChoiceChip(
+                            label: Text(option.label),
+                            selected: selectedDuration == option.value,
+                            onSelected: (_) => setModalState(
+                              () => selectedDuration = option.value,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (selectedDuration == 0) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: customDurationController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: '운동 시간',
+                          suffixText: '분',
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    const Text(
+                      '강도',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in _activityIntensityOptions)
+                          ChoiceChip(
+                            label: Text(option.label),
+                            selected: selectedIntensity == option.value,
+                            onSelected: (_) => setModalState(
+                              () => selectedIntensity = option.value,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: memoController,
+                      decoration: const InputDecoration(
+                        labelText: '메모',
+                        hintText: '선택 입력',
+                      ),
+                      maxLength: 60,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: saving
+                                ? null
+                                : () => Navigator.of(sheetContext).pop(),
+                            child: const Text('취소'),
                           ),
                         ),
-                    ],
-                  ),
-                  if (selectedDuration == 0) ...[
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: customDurationController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: '운동 시간',
-                        suffixText: '분',
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed: saving ? null : save,
+                            icon: Icon(
+                              saving
+                                  ? Icons.hourglass_empty_rounded
+                                  : Icons.check_rounded,
+                              size: 18,
+                            ),
+                            label: Text(saving ? '저장 중...' : '저장'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  const Text(
-                    '강도',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final option in _activityIntensityOptions)
-                        ChoiceChip(
-                          label: Text(option.label),
-                          selected: selectedIntensity == option.value,
-                          onSelected: (_) => setModalState(
-                            () => selectedIntensity = option.value,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: memoController,
-                    decoration: const InputDecoration(
-                      labelText: '메모',
-                      hintText: '선택 입력',
-                    ),
-                    maxLength: 60,
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: saving
-                              ? null
-                              : () => Navigator.of(sheetContext).pop(),
-                          child: const Text('취소'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton.icon(
-                          onPressed: saving ? null : save,
-                          icon: Icon(
-                            saving
-                                ? Icons.hourglass_empty_rounded
-                                : Icons.check_rounded,
-                            size: 18,
-                          ),
-                          label: Text(saving ? '저장 중...' : '저장'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             );
           },
         );
       },
     ).whenComplete(() {
+      customTypeNameController.dispose();
       customDurationController.dispose();
       memoController.dispose();
     });
@@ -733,7 +766,7 @@ class HomeScreen extends StatelessWidget {
         return AlertDialog(
           title: const Text('운동 기록 삭제'),
           content: Text(
-            '${_activityTypeLabel(activity.type)} ${activity.durationMinutes}분 기록을 삭제할까요?',
+            '${_activityDisplayName(activity)} ${activity.durationMinutes}분 기록을 삭제할까요?',
           ),
           actions: [
             TextButton(
@@ -794,6 +827,14 @@ class HomeScreen extends StatelessWidget {
     };
   }
 
+  static String _activityDisplayName(ActivityRecord activity) {
+    if (activity.type == 'etc') {
+      final customName = activity.customTypeName?.trim();
+      return customName == null || customName.isEmpty ? '기타 운동' : customName;
+    }
+    return _activityTypeLabel(activity.type);
+  }
+
   static String _activityIntensityLabel(String intensity) {
     return switch (intensity) {
       'light' => '가볍게',
@@ -842,13 +883,21 @@ class HomeScreen extends StatelessWidget {
 class _TodayActivityCard extends StatelessWidget {
   const _TodayActivityCard({
     required this.activities,
+    required this.exerciseRecommendation,
+    required this.recommendationLoading,
     required this.onAdd,
     required this.onDelete,
+    required this.onGenerateRecommendation,
+    required this.onRefreshRecommendation,
   });
 
   final List<ActivityRecord> activities;
+  final AiExerciseRecommendation? exerciseRecommendation;
+  final bool recommendationLoading;
   final VoidCallback onAdd;
   final ValueChanged<ActivityRecord> onDelete;
+  final VoidCallback onGenerateRecommendation;
+  final VoidCallback onRefreshRecommendation;
 
   @override
   Widget build(BuildContext context) {
@@ -861,13 +910,13 @@ class _TodayActivityCard extends StatelessWidget {
     final title = !hasActivities
         ? '오늘 운동 기록 없음'
         : activities.length == 1
-            ? '${HomeScreen._activityTypeLabel(representative!.type)} ${representative.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(representative.intensity)}'
+            ? '${HomeScreen._activityDisplayName(representative!)} ${representative.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(representative.intensity)}'
             : '오늘 운동 ${activities.length}개 · 총 $totalMinutes분';
     final subtitle = !hasActivities
         ? '가벼운 산책도 오늘 활동 컨텍스트로 남길 수 있어요.'
         : activities.length == 1
             ? 'AI가 오늘 활동량과 컨디션 참고용으로만 사용해요.'
-            : '대표 운동 ${HomeScreen._activityTypeLabel(representative!.type)} · 칼로리 차감은 하지 않아요.';
+            : '대표 운동 ${HomeScreen._activityDisplayName(representative!)} · 칼로리 차감은 하지 않아요.';
 
     return AppCard(
       padding: const EdgeInsets.all(16),
@@ -906,9 +955,16 @@ class _TodayActivityCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (activities.length == 1)
+                IconButton(
+                  tooltip: '운동 기록 삭제',
+                  onPressed: () => onDelete(representative!),
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  color: AppColors.textSecondary,
+                ),
             ],
           ),
-          if (hasActivities) ...[
+          if (activities.length > 1) ...[
             const SizedBox(height: 12),
             for (final activity in activities.take(3)) ...[
               _ActivityListTile(
@@ -920,6 +976,13 @@ class _TodayActivityCard extends StatelessWidget {
             ],
           ],
           const SizedBox(height: 14),
+          _ExerciseRecommendationBlock(
+            recommendation: exerciseRecommendation,
+            loading: recommendationLoading,
+            onGenerate: onGenerateRecommendation,
+            onRefresh: onRefreshRecommendation,
+          ),
+          const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 44,
@@ -929,6 +992,102 @@ class _TodayActivityCard extends StatelessWidget {
               label: const Text('운동 기록하기'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExerciseRecommendationBlock extends StatelessWidget {
+  const _ExerciseRecommendationBlock({
+    required this.recommendation,
+    required this.loading,
+    required this.onGenerate,
+    required this.onRefresh,
+  });
+
+  final AiExerciseRecommendation? recommendation;
+  final bool loading;
+  final VoidCallback onGenerate;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = recommendation;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreenBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.directions_walk_rounded,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'AI 운동 추천',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (loading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (item == null) ...[
+            const Text(
+              '오늘 기록을 바탕으로 가벼운 운동을 추천받을 수 있어요.',
+              style: AppTextStyles.caption,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: OutlinedButton.icon(
+                onPressed: loading ? null : onGenerate,
+                icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+                label: const Text('AI 추천 받기'),
+              ),
+            ),
+          ] else ...[
+            Text(
+              item.title,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 5),
+            Text(item.reason, style: AppTextStyles.caption),
+            const SizedBox(height: 5),
+            Text(
+              item.caution,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 38,
+              child: OutlinedButton.icon(
+                onPressed: loading ? null : onRefresh,
+                icon: const Icon(Icons.refresh_rounded, size: 17),
+                label: const Text('추천 새로고침'),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -954,7 +1113,7 @@ class _ActivityListTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${HomeScreen._activityTypeLabel(activity.type)} ${activity.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(activity.intensity)}',
+                '${HomeScreen._activityDisplayName(activity)} ${activity.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(activity.intensity)}',
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
               if (memo != null && memo.isNotEmpty) ...[
