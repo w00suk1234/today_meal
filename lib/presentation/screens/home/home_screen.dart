@@ -661,27 +661,45 @@ class _TodayActivityCard extends StatelessWidget {
     final title = !hasActivities
         ? '오늘 운동 기록 없음'
         : activities.length == 1
-            ? '${HomeScreen._activityDisplayName(representative!)} ${representative.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(representative.intensity)}'
-            : '오늘 운동 ${activities.length}개 · 총 $totalMinutes분';
+            ? '${HomeScreen._activityDisplayName(representative!)} ${representative.durationMinutes}분'
+            : '오늘 운동 ${activities.length}개';
     final subtitle = !hasActivities
         ? '가벼운 산책도 오늘 활동 컨텍스트로 남길 수 있어요.'
         : activities.length == 1
             ? 'AI가 오늘 활동량과 컨디션 참고용으로만 사용해요.'
-            : '대표 운동 ${HomeScreen._activityDisplayName(representative!)} · 활동 참고용이에요.';
+            : '총 $totalMinutes분 · 섭취 기록과 따로 관리해요.';
+    final chips = <_ActivitySummaryChip>[
+      if (hasActivities)
+        _ActivitySummaryChip(
+          label: '활동 ${activities.length}개',
+          icon: Icons.check_circle_outline_rounded,
+        ),
+      if (hasActivities)
+        _ActivitySummaryChip(
+          label: '총 $totalMinutes분',
+          icon: Icons.schedule_rounded,
+        ),
+      if (representative != null)
+        _ActivitySummaryChip(
+          label: HomeScreen._activityIntensityLabel(representative.intensity),
+          icon: Icons.speed_rounded,
+        ),
+    ];
 
     return AppCard(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
                   color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(15),
+                  shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.fitness_center_rounded,
@@ -707,23 +725,28 @@ class _TodayActivityCard extends StatelessWidget {
                 ),
               ),
               if (activities.length == 1)
-                IconButton(
-                  tooltip: '운동 기록 삭제',
+                _ActivityDeleteButton(
                   onPressed: () => onDelete(representative!),
-                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                  color: AppColors.textSecondary,
                 ),
             ],
           ),
-          if (activities.length > 1) ...[
+          if (chips.isNotEmpty) ...[
             const SizedBox(height: 12),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: chips,
+            ),
+          ],
+          if (activities.length > 1) ...[
+            const SizedBox(height: 14),
             for (final activity in activities.take(3)) ...[
               _ActivityListTile(
                 activity: activity,
                 onDelete: () => onDelete(activity),
               ),
               if (activity != activities.take(3).last)
-                const Divider(height: 14, color: AppColors.divider),
+                const SizedBox(height: 8),
             ],
           ],
           const SizedBox(height: 14),
@@ -736,7 +759,7 @@ class _TodayActivityCard extends StatelessWidget {
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            height: 44,
+            height: 46,
             child: FilledButton.icon(
               onPressed: onAdd,
               icon: const Icon(Icons.add_circle_outline, size: 18),
@@ -767,21 +790,29 @@ class _ExerciseRecommendationBlock extends StatelessWidget {
     final item = recommendation;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.fromLTRB(13, 13, 13, 12),
       decoration: BoxDecoration(
-        color: AppColors.lightGreenBackground,
+        color: AppColors.blue.withValues(alpha: 0.055),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.blue.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.directions_walk_rounded,
-                color: AppColors.primary,
-                size: 18,
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: AppColors.cardWhite.withValues(alpha: 0.88),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.directions_walk_rounded,
+                  color: AppColors.primary,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 8),
               const Expanded(
@@ -807,9 +838,16 @@ class _ExerciseRecommendationBlock extends StatelessWidget {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              height: 38,
+              height: 36,
               child: OutlinedButton.icon(
                 onPressed: loading ? null : onGenerate,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: AppColors.cardWhite.withValues(alpha: 0.72),
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
+                ),
                 icon: const Icon(Icons.auto_awesome_rounded, size: 17),
                 label: const Text('AI 추천 받기'),
               ),
@@ -842,9 +880,16 @@ class _ExerciseRecommendationBlock extends StatelessWidget {
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
-              height: 38,
+              height: 36,
               child: OutlinedButton.icon(
                 onPressed: loading ? null : onRefresh,
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: AppColors.cardWhite.withValues(alpha: 0.72),
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.2),
+                  ),
+                ),
                 icon: const Icon(Icons.refresh_rounded, size: 17),
                 label: const Text('추천 새로고침'),
               ),
@@ -868,35 +913,161 @@ class _ActivityListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final memo = activity.memo?.trim();
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${HomeScreen._activityDisplayName(activity)} ${activity.durationMinutes}분 · ${HomeScreen._activityIntensityLabel(activity.intensity)}',
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              if (memo != null && memo.isNotEmpty) ...[
-                const SizedBox(height: 3),
+    final name = HomeScreen._activityDisplayName(activity);
+    final intensity = HomeScreen._activityIntensityLabel(activity.intensity);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceTint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              _activityIcon(activity.type),
+              color: AppColors.primary,
+              size: 17,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  memo,
+                  name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${activity.durationMinutes}분',
                   style: AppTextStyles.caption,
                 ),
+                if (memo != null && memo.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    memo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        IconButton(
-          tooltip: '운동 기록 삭제',
-          onPressed: onDelete,
-          icon: const Icon(Icons.delete_outline_rounded, size: 20),
+          _ActivityIntensityBadge(label: intensity),
+          const SizedBox(width: 4),
+          _ActivityDeleteButton(onPressed: onDelete),
+        ],
+      ),
+    );
+  }
+
+  static IconData _activityIcon(String type) {
+    return switch (type) {
+      'walk' => Icons.directions_walk_rounded,
+      'running' => Icons.directions_run_rounded,
+      'strength' => Icons.fitness_center_rounded,
+      'cycling' => Icons.directions_bike_rounded,
+      _ => Icons.self_improvement_rounded,
+    };
+  }
+}
+
+class _ActivitySummaryChip extends StatelessWidget {
+  const _ActivitySummaryChip({
+    required this.label,
+    required this.icon,
+  });
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.lightGreenBackground,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.primaryDark,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivityIntensityBadge extends StatelessWidget {
+  const _ActivityIntensityBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
           color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _ActivityDeleteButton extends StatelessWidget {
+  const _ActivityDeleteButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: IconButton(
+        tooltip: '운동 기록 삭제',
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          backgroundColor: AppColors.cardWhite,
+          foregroundColor: AppColors.textSecondary,
+          side: const BorderSide(color: AppColors.border),
+          padding: EdgeInsets.zero,
+        ),
+        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+      ),
     );
   }
 }

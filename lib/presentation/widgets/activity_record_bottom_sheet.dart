@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app.dart';
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/utils/date_utils.dart';
 import '../../data/models/activity_record.dart';
@@ -108,60 +109,102 @@ Future<void> showActivityRecordBottomSheet({
 
             return Padding(
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 18,
-                bottom: MediaQuery.viewInsetsOf(modalContext).bottom + 20,
+                left: 18,
+                right: 18,
+                top: 10,
+                bottom: MediaQuery.viewInsetsOf(modalContext).bottom + 18,
               ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('운동 기록하기', style: AppTextStyles.section),
-                    const SizedBox(height: 6),
-                    const Text(
-                      '오늘 활동량과 컨디션 참고용으로만 저장해요.',
-                      style: AppTextStyles.caption,
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      '운동 종류',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: AppColors.primarySoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.fitness_center_rounded,
+                            color: AppColors.primary,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '운동 기록하기',
+                                style: AppTextStyles.section,
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '오늘 활동량과 컨디션 참고용으로만 저장해요.',
+                                style: AppTextStyles.caption,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 20),
+                    const _SheetSectionTitle('운동 종류'),
+                    const SizedBox(height: 9),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         for (final option in _activityTypeOptions)
-                          ChoiceChip(
+                          _ActivityChoiceChip(
                             label: Text(option.label),
                             selected: selectedType == option.value,
-                            onSelected: (_) => setModalState(
+                            onSelected: () => setModalState(
                               () => selectedType = option.value,
                             ),
                           ),
                       ],
                     ),
                     if (selectedType == 'etc') ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: customTypeNameController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: '운동 이름',
-                          hintText: '스트레칭, 등산, 계단 오르기, 축구 등',
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceTint,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
                         ),
-                        maxLength: 24,
+                        child: TextField(
+                          controller: customTypeNameController,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: '운동 이름',
+                            hintText: '스트레칭, 등산, 계단 오르기, 축구 등',
+                            border: InputBorder.none,
+                          ),
+                          maxLength: 24,
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    const Text(
-                      '운동 시간',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 18),
+                    const _SheetSectionTitle('운동 시간'),
+                    const SizedBox(height: 9),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -173,82 +216,104 @@ Future<void> showActivityRecordBottomSheet({
                           (label: '60분', value: 60),
                           (label: '직접 입력', value: 0),
                         ])
-                          ChoiceChip(
+                          _ActivityChoiceChip(
                             label: Text(option.label),
                             selected: selectedDuration == option.value,
-                            onSelected: (_) => setModalState(
+                            onSelected: () => setModalState(
                               () => selectedDuration = option.value,
                             ),
                           ),
                       ],
                     ),
                     if (selectedDuration == 0) ...[
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: customDurationController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: '운동 시간',
-                          suffixText: '분',
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceTint,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: TextField(
+                          controller: customDurationController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '운동 시간',
+                            suffixText: '분',
+                            border: InputBorder.none,
+                          ),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 16),
-                    const Text(
-                      '강도',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 18),
+                    const _SheetSectionTitle('강도'),
+                    const SizedBox(height: 9),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
                         for (final option in _activityIntensityOptions)
-                          ChoiceChip(
+                          _ActivityChoiceChip(
                             label: Text(option.label),
                             selected: selectedIntensity == option.value,
-                            onSelected: (_) => setModalState(
+                            onSelected: () => setModalState(
                               () => selectedIntensity = option.value,
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: memoController,
-                      decoration: const InputDecoration(
-                        labelText: '메모',
-                        hintText: '선택 입력',
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceTint,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.border),
                       ),
-                      maxLength: 60,
+                      child: TextField(
+                        controller: memoController,
+                        decoration: const InputDecoration(
+                          labelText: '메모',
+                          hintText: '선택 입력',
+                          border: InputBorder.none,
+                        ),
+                        maxLength: 60,
+                      ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
-                          child: OutlinedButton(
-                            onPressed: saving
-                                ? null
-                                : () => Navigator.of(sheetContext).pop(),
-                            child: const Text('취소'),
+                          child: SizedBox(
+                            height: 46,
+                            child: OutlinedButton(
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.of(sheetContext).pop(),
+                              child: const Text('취소'),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           flex: 2,
-                          child: FilledButton.icon(
-                            onPressed: saving ? null : save,
-                            icon: Icon(
-                              saving
-                                  ? Icons.hourglass_empty_rounded
-                                  : Icons.check_rounded,
-                              size: 18,
+                          child: SizedBox(
+                            height: 46,
+                            child: FilledButton.icon(
+                              onPressed: saving ? null : save,
+                              icon: Icon(
+                                saving
+                                    ? Icons.hourglass_empty_rounded
+                                    : Icons.check_rounded,
+                                size: 18,
+                              ),
+                              label: Text(saving ? '저장 중...' : '저장'),
                             ),
-                            label: Text(saving ? '저장 중...' : '저장'),
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 2),
                   ],
                 ),
               ),
@@ -261,5 +326,59 @@ Future<void> showActivityRecordBottomSheet({
     customTypeNameController.dispose();
     customDurationController.dispose();
     memoController.dispose();
+  }
+}
+
+class _SheetSectionTitle extends StatelessWidget {
+  const _SheetSectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontWeight: FontWeight.w900,
+        color: AppColors.textPrimary,
+      ),
+    );
+  }
+}
+
+class _ActivityChoiceChip extends StatelessWidget {
+  const _ActivityChoiceChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final Widget label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: label,
+      selected: selected,
+      showCheckmark: true,
+      selectedColor: AppColors.primarySoft,
+      backgroundColor: AppColors.cardWhite,
+      checkmarkColor: AppColors.primary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(999),
+      ),
+      side: BorderSide(
+        color: selected
+            ? AppColors.primary.withValues(alpha: 0.35)
+            : AppColors.border,
+      ),
+      labelStyle: TextStyle(
+        color: selected ? AppColors.primaryDark : AppColors.textSecondary,
+        fontWeight: FontWeight.w800,
+      ),
+      onSelected: (_) => onSelected(),
+    );
   }
 }
