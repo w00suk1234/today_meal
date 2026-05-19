@@ -25,6 +25,13 @@ abstract class MealCoachService {
     required Map<String, Object?> recentSummary,
     required Map<String, Object?> healthContext,
   });
+
+  Future<AiExerciseRecommendation> generateExerciseRecommendation({
+    required String date,
+    required Map<String, Object?> todaySummary,
+    required Map<String, Object?> recentSummary,
+    required Map<String, Object?> healthContext,
+  });
 }
 
 class MealCoachException implements Exception {
@@ -61,6 +68,19 @@ class FallbackMealCoachService extends MealCoachService {
     required Map<String, Object?> healthContext,
   }) async {
     return AiImprovementReportResult.fallback().copyWith(
+      isFallback: true,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<AiExerciseRecommendation> generateExerciseRecommendation({
+    required String date,
+    required Map<String, Object?> todaySummary,
+    required Map<String, Object?> recentSummary,
+    required Map<String, Object?> healthContext,
+  }) async {
+    return AiExerciseRecommendation.fallback().copyWith(
       isFallback: true,
       createdAt: DateTime.now(),
     );
@@ -144,6 +164,41 @@ class RemoteMealCoachService extends MealCoachService {
     } catch (error) {
       debugPrint('[MEAL_COACH_FALLBACK] improvement_report error=$error');
       return fallback.generateImprovementReport(
+        date: date,
+        todaySummary: todaySummary,
+        recentSummary: recentSummary,
+        healthContext: healthContext,
+      );
+    }
+  }
+
+  @override
+  Future<AiExerciseRecommendation> generateExerciseRecommendation({
+    required String date,
+    required Map<String, Object?> todaySummary,
+    required Map<String, Object?> recentSummary,
+    required Map<String, Object?> healthContext,
+  }) async {
+    try {
+      final decoded = await _post(
+        mode: 'exercise_recommendation',
+        date: date,
+        todaySummary: todaySummary,
+        recentSummary: recentSummary,
+        healthContext: healthContext,
+      );
+      final result = decoded['result'];
+      if (result is! Map<String, dynamic>) {
+        throw const MealCoachException('AI 운동 추천 응답 형식이 올바르지 않습니다.');
+      }
+      return AiExerciseRecommendation.fromJson({
+        ...result,
+        'model': decoded['model'],
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+    } catch (error) {
+      debugPrint('[MEAL_COACH_FALLBACK] exercise_recommendation error=$error');
+      return fallback.generateExerciseRecommendation(
         date: date,
         todaySummary: todaySummary,
         recentSummary: recentSummary,

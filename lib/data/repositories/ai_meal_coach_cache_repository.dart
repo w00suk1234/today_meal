@@ -8,6 +8,7 @@ class AiMealCoachCacheRepository {
 
   static const _todayPlanPrefix = 'ai_today_plan_';
   static const _improvementReportPrefix = 'ai_improvement_report_';
+  static const _exerciseRecommendationPrefix = 'ai_exercise_recommendation_';
 
   final LocalStorageService _storage;
 
@@ -33,6 +34,35 @@ class AiMealCoachCacheRepository {
 
   Future<void> clearTodayPlan(String dateKey) async {
     await _storage.setString('$_todayPlanPrefix$dateKey', '');
+  }
+
+  Future<AiExerciseRecommendation?> getExerciseRecommendation(
+    String dateKey,
+  ) async {
+    final raw = _storage.getString('$_exerciseRecommendationPrefix$dateKey');
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return AiExerciseRecommendation.fromJson(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveExerciseRecommendation(
+    String dateKey,
+    AiExerciseRecommendation result,
+  ) async {
+    await _storage.setString(
+      '$_exerciseRecommendationPrefix$dateKey',
+      jsonEncode(result.toJson()),
+    );
+  }
+
+  Future<void> clearExerciseRecommendation(String dateKey) async {
+    await _storage.setString('$_exerciseRecommendationPrefix$dateKey', '');
   }
 
   Future<AiImprovementReportResult?> getImprovementReport(

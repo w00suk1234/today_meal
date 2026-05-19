@@ -160,6 +160,8 @@ class TodayMealController extends ChangeNotifier {
     required this.weightRecords,
     this.todayAiPlan,
     this.todayAiPlanDateKey,
+    this.exerciseRecommendation,
+    this.exerciseRecommendationDateKey,
     this.aiImprovementReport,
     this.aiImprovementReportDateKey,
   });
@@ -184,11 +186,15 @@ class TodayMealController extends ChangeNotifier {
   List<WeightRecord> weightRecords;
   AiTodayPlanResult? todayAiPlan;
   String? todayAiPlanDateKey;
+  AiExerciseRecommendation? exerciseRecommendation;
+  String? exerciseRecommendationDateKey;
   AiImprovementReportResult? aiImprovementReport;
   String? aiImprovementReportDateKey;
   bool isGeneratingTodayAiPlan = false;
+  bool isGeneratingExerciseRecommendation = false;
   bool isGeneratingAiImprovementReport = false;
   String? todayAiPlanError;
+  String? exerciseRecommendationError;
   String? aiImprovementReportError;
 
   static Future<TodayMealController> create() async {
@@ -230,6 +236,9 @@ class TodayMealController extends ChangeNotifier {
       weightRecords: await weightRepository.getAll(),
       todayAiPlan: await aiMealCoachCacheRepository.getTodayPlan(todayDateKey),
       todayAiPlanDateKey: todayDateKey,
+      exerciseRecommendation: await aiMealCoachCacheRepository
+          .getExerciseRecommendation(todayDateKey),
+      exerciseRecommendationDateKey: todayDateKey,
       aiImprovementReport:
           await aiMealCoachCacheRepository.getImprovementReport(todayDateKey),
       aiImprovementReportDateKey: todayDateKey,
@@ -352,6 +361,13 @@ class TodayMealController extends ChangeNotifier {
     return todayAiPlanDateKey == dateKey ? todayAiPlan : null;
   }
 
+  AiExerciseRecommendation? get cachedExerciseRecommendation {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    return exerciseRecommendationDateKey == dateKey
+        ? exerciseRecommendation
+        : null;
+  }
+
   AiImprovementReportResult? get cachedAiImprovementReport {
     final dateKey = AppDateUtils.dateKey(DateTime.now());
     return aiImprovementReportDateKey == dateKey ? aiImprovementReport : null;
@@ -436,7 +452,7 @@ class TodayMealController extends ChangeNotifier {
     }
     await activityRepository.add(record);
     activities = await activityRepository.getAll();
-    await _clearTodayPlanCacheFor(record.dateKey);
+    await _clearActivitySensitiveAiCachesFor(record.dateKey);
     notifyListeners();
   }
 
@@ -451,7 +467,7 @@ class TodayMealController extends ChangeNotifier {
     await activityRepository.delete(id);
     activities = await activityRepository.getAll();
     if (changedDateKey != null) {
-      await _clearTodayPlanCacheFor(changedDateKey);
+      await _clearActivitySensitiveAiCachesFor(changedDateKey);
     }
     notifyListeners();
   }
@@ -601,6 +617,62 @@ class TodayMealController extends ChangeNotifier {
       return fallback;
     } finally {
       isGeneratingTodayAiPlan = false;
+      notifyListeners();
+    }
+  }
+
+  Future<AiExerciseRecommendation> generateExerciseRecommendation({
+    bool forceRefresh = false,
+  }) async {
+    final dateKey = AppDateUtils.dateKey(DateTime.now());
+    if (!forceRefresh) {
+      final cached = cachedExerciseRecommendation ??
+          await aiMealCoachCacheRepository.getExerciseRecommendation(dateKey);
+      if (cached != null) {
+        exerciseRecommendation = cached;
+        exerciseRecommendationDateKey = dateKey;
+        exerciseRecommendationError = null;
+        notifyListeners();
+        return cached;
+      }
+    }
+
+    isGeneratingExerciseRecommendation = true;
+    exerciseRecommendationError = null;
+    notifyListeners();
+
+    try {
+      final result = await mealCoachService.generateExerciseRecommendation(
+        date: dateKey,
+        todaySummary: _buildTodayCoachSummary(todaySummary),
+        recentSummary: _buildRecentCoachSummary(),
+        healthContext: _buildCoachHealthContext(),
+      );
+      final next = result.copyWith(
+        createdAt: result.createdAt ?? DateTime.now(),
+      );
+      exerciseRecommendation = next;
+      exerciseRecommendationDateKey = dateKey;
+      if (next.isFallback) {
+        exerciseRecommendationError = 'AI 운동 추천을 불러오지 못해 기본 제안을 표시합니다.';
+      } else {
+        await aiMealCoachCacheRepository.saveExerciseRecommendation(
+          dateKey,
+          next,
+        );
+      }
+      return next;
+    } catch (_) {
+      final fallback = AiExerciseRecommendation.fallback().copyWith(
+        isFallback: true,
+        createdAt: DateTime.now(),
+      );
+      exerciseRecommendation = fallback;
+      exerciseRecommendationDateKey = dateKey;
+      exerciseRecommendationError = 'AI 운동 추천을 불러오지 못해 기본 제안을 표시합니다.';
+      return fallback;
+    } finally {
+      isGeneratingExerciseRecommendation = false;
       notifyListeners();
     }
   }
@@ -776,15 +848,19 @@ class TodayMealController extends ChangeNotifier {
     mealStatuses = await mealStatusRepository.getAll();
   }
 
-  Future<void> _clearTodayPlanCacheFor(String dateKey) async {
+  Future<void> _clearActivitySensitiveAiCachesFor(String dateKey) async {
     final todayDateKey = AppDateUtils.dateKey(DateTime.now());
     if (dateKey != todayDateKey) {
       return;
     }
     await aiMealCoachCacheRepository.clearTodayPlan(dateKey);
+    await aiMealCoachCacheRepository.clearExerciseRecommendation(dateKey);
     todayAiPlan = null;
     todayAiPlanDateKey = dateKey;
     todayAiPlanError = null;
+    exerciseRecommendation = null;
+    exerciseRecommendationDateKey = dateKey;
+    exerciseRecommendationError = null;
   }
 
   String _mainActivityIntensity(List<ActivityRecord> records) {

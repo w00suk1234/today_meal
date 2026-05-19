@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import OpenAI from 'openai';
 
-type CoachMode = 'today_plan' | 'improvement_report';
+type CoachMode = 'today_plan' | 'improvement_report' | 'exercise_recommendation';
 
 const OPENAI_TIMEOUT_MS = 30_000;
 const MAX_BODY_LENGTH = 24_000;
@@ -138,14 +138,31 @@ function cleanText(value: string) {
 }
 
 function normalizeMode(value: unknown): CoachMode | null {
-  return value === 'today_plan' || value === 'improvement_report' ? value : null;
+  return value === 'today_plan' ||
+    value === 'improvement_report' ||
+    value === 'exercise_recommendation'
+    ? value
+    : null;
 }
 
 function buildSystemPrompt(mode: CoachMode) {
   const task =
     mode === 'today_plan'
       ? 'Generate a concise AI today meal plan for the rest of today.'
-      : 'Generate a concise AI improvement report from the recent 7-day summary.';
+      : mode === 'exercise_recommendation'
+        ? 'Generate one concise AI exercise recommendation for today.'
+        : 'Generate a concise AI improvement report from the recent 7-day summary.';
+  const exerciseRules =
+    mode === 'exercise_recommendation'
+      ? [
+          'The title field must be short and fit on one mobile line.',
+          'The reason field must be around 80 Korean characters or less.',
+          'The caution field should be short.',
+          'Do not push exercise as mandatory.',
+          'If skippedMealTypes exist or mealCount is low, prefer light walking, stretching, or rest instead of hard exercise.',
+          'If activityContext already shows enough activity today, suggest light recovery or rest.',
+        ]
+      : [];
   return [
     'You are a Korean meal coaching assistant inside a local-first diet logging app.',
     task,
@@ -157,10 +174,7 @@ function buildSystemPrompt(mode: CoachMode) {
     'Avoid strong wording such as "you exercised so you should eat more".',
     'For activity, keep advice to general lifestyle suggestions like light recovery, hydration, and protein support.',
     'Do not give medical, treatment, or rehabilitation advice based on activity.',
-    'Include exerciseRecommendation for today_plan as a short general lifestyle activity suggestion.',
-    'If skippedMealTypes exist or mealCount is low, prefer light walking, stretching, or rest instead of hard exercise.',
-    'If activityContext already shows enough activity today, do not strongly suggest extra exercise.',
-    'Exercise advice must mention that resting is okay when the user feels unwell.',
+    ...exerciseRules,
     'Never use parentheses, brackets, or meta explanations in user-facing text.',
     'Do not write internal notes such as "think of this as a guide" inside the answer.',
     'Prefer direct menu names instead of alternatives in parentheses.',
@@ -169,7 +183,9 @@ function buildSystemPrompt(mode: CoachMode) {
     'Do not encourage extreme dieting, fasting, or rapid weight loss.',
     'Prefer realistic Korean meals and everyday actions.',
     'Do not modify or save any meal data. Only provide suggestions.',
-    'Always include the caution exactly as a reference-only food suggestion.',
+    mode === 'exercise_recommendation'
+      ? 'Always include a short caution that resting is okay when condition is not good.'
+      : 'Always include the caution exactly as a reference-only food suggestion.',
   ].join('\n');
 }
 
@@ -189,6 +205,9 @@ function buildUserPrompt(mode: CoachMode, body: any) {
     'activityContext는 오늘 활동량 참고용입니다. 운동 칼로리를 섭취 칼로리에서 빼지 마세요.',
     '오늘 식사 기록이 적거나 굶은 식사가 있으면 강한 운동보다 걷기, 스트레칭, 휴식 위주로 제안하세요.',
     '이미 운동 기록이 충분하면 추가 운동을 강하게 권하지 말고 가벼운 회복이나 휴식을 제안하세요.',
+    mode === 'exercise_recommendation'
+      ? '운동 추천은 제목 한 줄, 이유 1~2문장, 짧은 주의 문구 정도로만 작성하세요.'
+      : '식단 제안은 앱 카드에 맞게 짧게 작성하세요.',
     '사용자에게 그대로 보이는 문장이므로 괄호, 대괄호, 내부 설명 같은 메모를 쓰지 마세요.',
     '남은 칼로리를 채우라는 표현 대신 참고 목표와 현재 기록 흐름을 말해주세요.',
     JSON.stringify(payload),
@@ -249,7 +268,6 @@ const todayPlanSchema = {
       maxItems: 3,
     },
     nextMealSuggestion: nextMealSuggestionSchema,
-    exerciseRecommendation: exerciseRecommendationSchema,
     missions: {
       type: 'array',
       items: { type: 'string' },
@@ -265,7 +283,6 @@ const todayPlanSchema = {
     'statusLabel',
     'recommendedFocus',
     'nextMealSuggestion',
-    'exerciseRecommendation',
     'missions',
     'caution',
   ],
@@ -320,7 +337,13 @@ const improvementReportSchema = {
 };
 
 function schemaForMode(mode: CoachMode) {
-  return mode === 'today_plan' ? todayPlanSchema : improvementReportSchema;
+  if (mode === 'today_plan') {
+    return todayPlanSchema;
+  }
+  if (mode === 'exercise_recommendation') {
+    return exerciseRecommendationSchema;
+  }
+  return improvementReportSchema;
 }
 
 function collectOutputText(response: any) {
@@ -340,7 +363,6 @@ function collectOutputText(response: any) {
 
 function normalizeTodayPlan(value: any) {
   const suggestion = value?.nextMealSuggestion ?? {};
-  const exercise = value?.exerciseRecommendation ?? {};
   return {
     type: 'today_plan',
     title: textOrFallback(value?.title, '오늘은 균형을 조금 보완해보세요.', 80),
@@ -364,31 +386,34 @@ function normalizeTodayPlan(value: any) {
       carbsG: Math.round(numberOrFallback(suggestion?.carbsG, 55)),
       fatG: Math.round(numberOrFallback(suggestion?.fatG, 15)),
     },
-    exerciseRecommendation: {
-      title: textOrFallback(exercise?.title, '가볍게 걷기 20분', 70),
-      reason: textOrFallback(
-        exercise?.reason,
-        '오늘 기록을 참고하면 강한 운동보다 부담 없는 활동이 좋아요.',
-        140,
-      ),
-      durationMinutes: Math.max(
-        0,
-        Math.min(240, Math.round(numberOrFallback(exercise?.durationMinutes, 20))),
-      ),
-      intensity: textOrFallback(exercise?.intensity, 'light', 20),
-      type: textOrFallback(exercise?.type, 'walk', 24),
-      caution: textOrFallback(
-        exercise?.caution,
-        '어지럽거나 컨디션이 좋지 않으면 쉬어도 괜찮아요.',
-        100,
-      ),
-    },
     missions: stringList(
       value?.missions,
       ['다음 식사에 단백질 식품 하나 포함하기', '오늘 기록을 마무리하기'],
       3,
     ),
     caution: '참고용 식단 제안이며 의학적 조언이 아닙니다.',
+  };
+}
+
+function normalizeExerciseRecommendation(value: any) {
+  return {
+    title: textOrFallback(value?.title, '가볍게 걷기 20분', 38),
+    reason: textOrFallback(
+      value?.reason,
+      '오늘은 강한 운동보다 부담 없는 활동이 좋아요.',
+      90,
+    ),
+    durationMinutes: Math.max(
+      0,
+      Math.min(240, Math.round(numberOrFallback(value?.durationMinutes, 20))),
+    ),
+    intensity: textOrFallback(value?.intensity, 'light', 20),
+    type: textOrFallback(value?.type, 'walk', 24),
+    caution: textOrFallback(
+      value?.caution,
+      '컨디션이 좋지 않으면 쉬어도 괜찮아요.',
+      60,
+    ),
   };
 }
 
@@ -423,9 +448,13 @@ function normalizeImprovementReport(value: any) {
 }
 
 function normalizeResult(mode: CoachMode, parsed: any) {
-  return mode === 'today_plan'
-    ? normalizeTodayPlan(parsed)
-    : normalizeImprovementReport(parsed);
+  if (mode === 'today_plan') {
+    return normalizeTodayPlan(parsed);
+  }
+  if (mode === 'exercise_recommendation') {
+    return normalizeExerciseRecommendation(parsed);
+  }
+  return normalizeImprovementReport(parsed);
 }
 
 async function callOpenAi(mode: CoachMode, body: any) {
@@ -463,12 +492,19 @@ async function callOpenAi(mode: CoachMode, body: any) {
             name:
               mode === 'today_plan'
                 ? 'today_meal_ai_plan'
-                : 'today_meal_ai_improvement_report',
+                : mode === 'exercise_recommendation'
+                  ? 'today_meal_ai_exercise_recommendation'
+                  : 'today_meal_ai_improvement_report',
             strict: true,
             schema: schemaForMode(mode),
           },
         },
-        max_output_tokens: mode === 'today_plan' ? 900 : 1200,
+        max_output_tokens:
+          mode === 'exercise_recommendation'
+            ? 450
+            : mode === 'today_plan'
+              ? 900
+              : 1200,
         store: false,
       } as any,
       { signal: controller.signal } as any,
@@ -559,7 +595,7 @@ export default async function handler(req: any, res: any) {
         res,
         400,
         'INVALID_MODE',
-        'mode는 today_plan 또는 improvement_report만 지원합니다.',
+        'mode는 today_plan, improvement_report, exercise_recommendation만 지원합니다.',
       );
       return;
     }

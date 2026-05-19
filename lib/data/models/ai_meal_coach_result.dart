@@ -50,6 +50,9 @@ class AiExerciseRecommendation {
     required this.intensity,
     required this.type,
     required this.caution,
+    this.isFallback = false,
+    this.model,
+    this.createdAt,
   });
 
   final String title;
@@ -58,6 +61,9 @@ class AiExerciseRecommendation {
   final String intensity;
   final String type;
   final String caution;
+  final bool isFallback;
+  final String? model;
+  final DateTime? createdAt;
 
   factory AiExerciseRecommendation.fromJson(Map<String, dynamic> json) {
     return AiExerciseRecommendation(
@@ -70,6 +76,39 @@ class AiExerciseRecommendation {
       intensity: _string(json['intensity'], 'light'),
       type: _string(json['type'], 'walk'),
       caution: _string(json['caution'], '컨디션이 좋지 않으면 쉬어도 괜찮아요.'),
+      isFallback: json['isFallback'] == true,
+      model: json['model'] as String?,
+      createdAt: DateTime.tryParse('${json['createdAt'] ?? ''}'),
+    );
+  }
+
+  factory AiExerciseRecommendation.fallback() {
+    return const AiExerciseRecommendation(
+      title: '가볍게 걷기 20분',
+      reason: '오늘은 강한 운동보다 부담 없는 활동이 좋아요.',
+      durationMinutes: 20,
+      intensity: 'light',
+      type: 'walk',
+      caution: '컨디션이 좋지 않으면 쉬어도 괜찮아요.',
+      isFallback: true,
+    );
+  }
+
+  AiExerciseRecommendation copyWith({
+    bool? isFallback,
+    String? model,
+    DateTime? createdAt,
+  }) {
+    return AiExerciseRecommendation(
+      title: title,
+      reason: reason,
+      durationMinutes: durationMinutes,
+      intensity: intensity,
+      type: type,
+      caution: caution,
+      isFallback: isFallback ?? this.isFallback,
+      model: model ?? this.model,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 
@@ -81,6 +120,9 @@ class AiExerciseRecommendation {
       'intensity': intensity,
       'type': type,
       'caution': caution,
+      'isFallback': isFallback,
+      'model': model,
+      'createdAt': createdAt?.toIso8601String(),
     };
   }
 }
@@ -157,14 +199,6 @@ class AiTodayPlanResult {
       ),
       missions: ['다음 식사에 단백질 식품 하나 포함하기', '오늘 기록을 가볍게 마무리하기'],
       caution: _defaultCaution,
-      exerciseRecommendation: AiExerciseRecommendation(
-        title: '가볍게 걷기 20분',
-        reason: '오늘 기록을 참고하면 강한 운동보다 부담 없는 활동이 좋아요.',
-        durationMinutes: 20,
-        intensity: 'light',
-        type: 'walk',
-        caution: '컨디션이 좋지 않으면 쉬어도 괜찮아요.',
-      ),
       isFallback: true,
       createdAt: null,
     );

@@ -6,6 +6,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/utils/nutrition_calculator.dart';
 import '../../../data/models/meal_record.dart';
+import '../../widgets/activity_record_bottom_sheet.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_empty_state.dart';
 import '../../widgets/app_scaffold.dart';
@@ -58,8 +59,10 @@ class _RecordsScreenState extends State<RecordsScreen> {
         const SectionHeader(title: '빠른 기록'),
         _QuickRecordActions(
           onWeight: _showWeightRecordSheet,
-          onExercise: () => _showComingSoon('운동 기록은 다음 단계에서 연결할게요.'),
-          onMedicine: () => _showComingSoon('약 기록은 다음 단계에서 연결할게요.'),
+          onExercise: () => showActivityRecordBottomSheet(
+            context: context,
+            date: _selectedDate,
+          ),
         ),
         const SectionHeader(title: '오늘의 영양 요약'),
         _RecordSummaryCard(
@@ -160,11 +163,6 @@ class _RecordsScreenState extends State<RecordsScreen> {
     if (picked != null) {
       setState(() => _selectedDate = picked);
     }
-  }
-
-  void _showComingSoon(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showWeightRecordSheet() {
@@ -651,12 +649,10 @@ class _QuickRecordActions extends StatelessWidget {
   const _QuickRecordActions({
     required this.onWeight,
     required this.onExercise,
-    required this.onMedicine,
   });
 
   final VoidCallback onWeight;
   final VoidCallback onExercise;
-  final VoidCallback onMedicine;
 
   @override
   Widget build(BuildContext context) {
@@ -678,14 +674,6 @@ class _QuickRecordActions extends StatelessWidget {
               label: '운동',
               icon: Icons.fitness_center_rounded,
               onTap: onExercise,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: _QuickRecordButton(
-              label: '약',
-              icon: Icons.medication_outlined,
-              onTap: onMedicine,
             ),
           ),
         ],
