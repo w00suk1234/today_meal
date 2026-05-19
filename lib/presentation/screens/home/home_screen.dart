@@ -37,13 +37,13 @@ class HomeScreen extends StatelessWidget {
     final health = controller.healthProfile;
     final latestWeight = controller.latestWeightKg;
     final latestBmi = controller.latestBmi;
+    final skippedMealTypes = controller.skippedMealTypesFor(summary.dateKey);
     final timingMessages = MealTimingAnalyzer.generateFeedback(
       records: summary.records,
       sleepTime: health.sleepTime,
+      skippedMealTypes: skippedMealTypes,
     );
-    final timingMessage = summary.records.isEmpty
-        ? '오늘은 아직 식사 기록이 없습니다. 규칙적인 식사 패턴을 기록해보세요.'
-        : timingMessages.first;
+    final timingMessage = timingMessages.first;
     final nickname = health.nickname.trim().isEmpty
         ? profile.nickname.trim()
         : health.nickname.trim();
@@ -158,23 +158,43 @@ class HomeScreen extends StatelessWidget {
           items: [
             MealStatusItem(
               label: '아침',
-              done: _hasMeal(summary.records, 'breakfast'),
+              state: _mealStatusState(
+                records: summary.records,
+                skippedMealTypes: skippedMealTypes,
+                mealType: 'breakfast',
+              ),
               icon: Icons.wb_sunny_outlined,
+              onTap: () => _showMealStatusSheet(context, 'breakfast'),
             ),
             MealStatusItem(
               label: '점심',
-              done: _hasMeal(summary.records, 'lunch'),
+              state: _mealStatusState(
+                records: summary.records,
+                skippedMealTypes: skippedMealTypes,
+                mealType: 'lunch',
+              ),
               icon: Icons.restaurant_menu_rounded,
+              onTap: () => _showMealStatusSheet(context, 'lunch'),
             ),
             MealStatusItem(
               label: '저녁',
-              done: _hasMeal(summary.records, 'dinner'),
+              state: _mealStatusState(
+                records: summary.records,
+                skippedMealTypes: skippedMealTypes,
+                mealType: 'dinner',
+              ),
               icon: Icons.nightlight_round,
+              onTap: () => _showMealStatusSheet(context, 'dinner'),
             ),
             MealStatusItem(
               label: '간식',
-              done: _hasMeal(summary.records, 'snack'),
+              state: _mealStatusState(
+                records: summary.records,
+                skippedMealTypes: skippedMealTypes,
+                mealType: 'snack',
+              ),
               icon: Icons.icecream_outlined,
+              onTap: () => _showMealStatusSheet(context, 'snack'),
             ),
           ],
         ),
@@ -215,6 +235,119 @@ class HomeScreen extends StatelessWidget {
 
   static bool _hasMeal(List<MealRecord> records, String type) {
     return records.any((record) => record.mealType == type);
+  }
+
+  static MealStatusState _mealStatusState({
+    required List<MealRecord> records,
+    required Set<String> skippedMealTypes,
+    required String mealType,
+  }) {
+    if (_hasMeal(records, mealType)) {
+      return MealStatusState.recorded;
+    }
+    if (skippedMealTypes.contains(mealType)) {
+      return MealStatusState.skipped;
+    }
+    return MealStatusState.pending;
+  }
+
+  void _showMealStatusSheet(BuildContext context, String mealType) {
+    final rootContext = context;
+    final controller = AppScope.of(context);
+    final summary = controller.todaySummary;
+    final label = _mealTypeLabel(mealType);
+    final hasMeal = _hasMeal(summary.records, mealType);
+    final isSkipped = controller.isMealSkipped(summary.dateKey, mealType);
+
+    showModalBottomSheet<void>(
+      context: rootContext,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        Future<void> markSkipped() async {
+          await controller.markMealSkipped(
+            mealType,
+            memo: '$label 건너뜀',
+          );
+          if (!sheetContext.mounted) {
+            return;
+          }
+          Navigator.of(sheetContext).pop();
+          ScaffoldMessenger.of(rootContext).showSnackBar(
+            SnackBar(content: Text('$label을 굶음으로 기록했습니다.')),
+          );
+        }
+
+        Future<void> clearSkipped() async {
+          await controller.clearMealStatus(mealType);
+          if (!sheetContext.mounted) {
+            return;
+          }
+          Navigator.of(sheetContext).pop();
+          ScaffoldMessenger.of(rootContext).showSnackBar(
+            SnackBar(content: Text('$label 굶음 표시를 해제했습니다.')),
+          );
+        }
+
+        void addMeal() {
+          Navigator.of(sheetContext).pop();
+          onAnalyzeFood();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$label 상태 기록', style: AppTextStyles.section),
+              const SizedBox(height: 6),
+              Text(
+                hasMeal
+                    ? '$label 음식 기록이 이미 있어요. 추가 음식이 있으면 식사 추가로 남겨주세요.'
+                    : isSkipped
+                        ? '$label은 굶음으로 기록되어 있어요. 칼로리에는 더하지 않고 AI가 식사 패턴으로 참고합니다.'
+                        : '$label을 먹지 않았다면 굶음으로 남겨두고, 먹었다면 음식 기록을 추가해 주세요.',
+                style: AppTextStyles.body,
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: addMeal,
+                  icon: const Icon(Icons.add_circle_outline, size: 18),
+                  label: const Text('음식 기록하기'),
+                ),
+              ),
+              if (!hasMeal) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: isSkipped
+                      ? OutlinedButton.icon(
+                          onPressed: clearSkipped,
+                          icon: const Icon(Icons.undo_rounded, size: 18),
+                          label: const Text('굶음 표시 해제'),
+                        )
+                      : OutlinedButton.icon(
+                          onPressed: markSkipped,
+                          icon: const Icon(
+                            Icons.remove_circle_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('굶었어요'),
+                        ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _showWeightRecordSheet(BuildContext context) {
@@ -354,6 +487,15 @@ class HomeScreen extends StatelessWidget {
       return '미입력';
     }
     return '${value.toStringAsFixed(1)}kg';
+  }
+
+  static String _mealTypeLabel(String type) {
+    return switch (type) {
+      'breakfast' => '아침',
+      'lunch' => '점심',
+      'dinner' => '저녁',
+      _ => '간식',
+    };
   }
 
   Future<bool> _confirmLargeWeightChange(

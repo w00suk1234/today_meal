@@ -12,6 +12,7 @@ import 'data/models/daily_summary.dart';
 import 'data/models/food_item.dart';
 import 'data/models/health_profile.dart';
 import 'data/models/meal_record.dart';
+import 'data/models/meal_status_record.dart';
 import 'data/models/user_profile.dart';
 import 'data/models/weight_log.dart';
 import 'data/models/weight_record.dart';
@@ -19,6 +20,7 @@ import 'data/repositories/ai_meal_coach_cache_repository.dart';
 import 'data/repositories/food_repository.dart';
 import 'data/repositories/health_repository.dart';
 import 'data/repositories/meal_repository.dart';
+import 'data/repositories/meal_status_repository.dart';
 import 'data/repositories/user_repository.dart';
 import 'data/repositories/weight_repository.dart';
 import 'presentation/screens/add_meal/add_meal_screen.dart';
@@ -138,6 +140,7 @@ class TodayMealController extends ChangeNotifier {
   TodayMealController({
     required this.foodRepository,
     required this.mealRepository,
+    required this.mealStatusRepository,
     required this.userRepository,
     required this.healthRepository,
     required this.weightRepository,
@@ -146,6 +149,7 @@ class TodayMealController extends ChangeNotifier {
     required this.mealCoachService,
     required this.foods,
     required this.records,
+    required this.mealStatuses,
     required this.profile,
     required this.healthProfile,
     required this.weightLogs,
@@ -158,6 +162,7 @@ class TodayMealController extends ChangeNotifier {
 
   final FoodRepository foodRepository;
   final MealRepository mealRepository;
+  final MealStatusRepository mealStatusRepository;
   final UserRepository userRepository;
   final HealthRepository healthRepository;
   final WeightRepository weightRepository;
@@ -166,6 +171,7 @@ class TodayMealController extends ChangeNotifier {
   final MealCoachService mealCoachService;
   final List<FoodItem> foods;
   List<MealRecord> records;
+  List<MealStatusRecord> mealStatuses;
   UserProfile profile;
   HealthProfile healthProfile;
   List<WeightLog> weightLogs;
@@ -183,6 +189,7 @@ class TodayMealController extends ChangeNotifier {
     final storage = await LocalStorageService.create();
     final foodRepository = FoodRepository();
     final mealRepository = MealRepository(storage);
+    final mealStatusRepository = MealStatusRepository(storage);
     final userRepository = UserRepository(storage);
     final healthRepository = HealthRepository(storage);
     final weightRepository = WeightRepository(storage);
@@ -198,6 +205,7 @@ class TodayMealController extends ChangeNotifier {
     return TodayMealController(
       foodRepository: foodRepository,
       mealRepository: mealRepository,
+      mealStatusRepository: mealStatusRepository,
       userRepository: userRepository,
       healthRepository: healthRepository,
       weightRepository: weightRepository,
@@ -206,6 +214,7 @@ class TodayMealController extends ChangeNotifier {
       mealCoachService: mealCoachService,
       foods: await foodRepository.loadFoods(),
       records: await mealRepository.loadRecords(),
+      mealStatuses: await mealStatusRepository.getAll(),
       profile: await userRepository.loadProfile(),
       healthProfile: healthProfile,
       weightLogs: await healthRepository.loadWeightLogs(),
@@ -227,6 +236,20 @@ class TodayMealController extends ChangeNotifier {
 
   DailySummary get todaySummary =>
       summaryFor(AppDateUtils.dateKey(DateTime.now()));
+
+  List<MealStatusRecord> mealStatusesFor(String dateKey) {
+    return mealStatuses
+        .where((record) => record.dateKey == dateKey && record.isSkipped)
+        .toList();
+  }
+
+  Set<String> skippedMealTypesFor(String dateKey) {
+    return mealStatusesFor(dateKey).map((record) => record.mealType).toSet();
+  }
+
+  bool isMealSkipped(String dateKey, String mealType) {
+    return skippedMealTypesFor(dateKey).contains(mealType);
+  }
 
   WeightRecord? get latestWeightRecord =>
       weightRecords.isEmpty ? null : weightRecords.last;
@@ -305,6 +328,7 @@ class TodayMealController extends ChangeNotifier {
       records: [record],
       aiDetected: false,
     );
+    await _clearMealStatusFor(record.dateKey, record.mealType);
     notifyListeners();
   }
 
@@ -323,6 +347,9 @@ class TodayMealController extends ChangeNotifier {
       aiDetected: aiDetected,
       aiConfidence: aiConfidence,
     );
+    for (final record in nextRecords) {
+      await _clearMealStatusFor(record.dateKey, record.mealType);
+    }
     notifyListeners();
   }
 
@@ -337,6 +364,29 @@ class TodayMealController extends ChangeNotifier {
         .map((record) => record.id == updatedRecord.id ? updatedRecord : record)
         .toList();
     await mealRepository.saveRecords(records);
+    await _clearMealStatusFor(updatedRecord.dateKey, updatedRecord.mealType);
+    notifyListeners();
+  }
+
+  Future<void> markMealSkipped(
+    String mealType, {
+    DateTime? date,
+    String? memo,
+  }) async {
+    final targetDate = date ?? DateTime.now();
+    final dateKey = AppDateUtils.dateKey(targetDate);
+    await mealStatusRepository.markSkipped(
+      dateKey: dateKey,
+      mealType: mealType,
+      memo: memo,
+    );
+    mealStatuses = await mealStatusRepository.getAll();
+    notifyListeners();
+  }
+
+  Future<void> clearMealStatus(String mealType, {DateTime? date}) async {
+    final targetDate = date ?? DateTime.now();
+    await _clearMealStatusFor(AppDateUtils.dateKey(targetDate), mealType);
     notifyListeners();
   }
 
@@ -582,6 +632,7 @@ class TodayMealController extends ChangeNotifier {
 
   Map<String, Object?> _buildTodayCoachSummary(DailySummary summary) {
     final mealTypes = summary.records.map((record) => record.mealType).toSet();
+    final skippedMealTypes = skippedMealTypesFor(summary.dateKey);
     return {
       'totalKcal': summary.totalKcal.round(),
       'targetKcal': healthProfile.targetKcal.round(),
@@ -590,6 +641,7 @@ class TodayMealController extends ChangeNotifier {
       'fatG': summary.totalFat.round(),
       'mealCount': summary.records.length,
       'recordedMealTypes': mealTypes.toList(),
+      'skippedMealTypes': skippedMealTypes.toList(),
     };
   }
 
@@ -614,6 +666,10 @@ class TodayMealController extends ChangeNotifier {
       'avgCarbsG': average((summary) => summary.totalCarbs).round(),
       'avgFatG': average((summary) => summary.totalFat).round(),
       'recordedDays': recorded.length,
+      'skippedMealCount': summaries.fold<int>(
+        0,
+        (sum, summary) => sum + skippedMealTypesFor(summary.dateKey).length,
+      ),
     };
   }
 
@@ -646,6 +702,11 @@ class TodayMealController extends ChangeNotifier {
       );
       return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd);
     }).toList();
+  }
+
+  Future<void> _clearMealStatusFor(String dateKey, String mealType) async {
+    await mealStatusRepository.clear(dateKey: dateKey, mealType: mealType);
+    mealStatuses = await mealStatusRepository.getAll();
   }
 }
 

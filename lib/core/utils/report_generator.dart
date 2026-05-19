@@ -20,8 +20,17 @@ class ReportGenerator {
     required UserProfile profile,
     required HealthProfile? healthProfile,
     List<WeightRecord> weightRecords = const [],
+    Set<String> skippedMealTypes = const {},
   }) {
     if (summary.records.isEmpty) {
+      if (skippedMealTypes.isNotEmpty) {
+        final skippedLabels = skippedMealTypes.map(_mealTypeLabel).join(', ');
+        return [
+          '오늘은 $skippedLabels을 건너뜀으로 기록했습니다.',
+          '굶음 기록은 칼로리에 더하지 않고 식사 패턴 참고용으로만 반영됩니다.',
+          _notice,
+        ];
+      }
       return [
         '아직 분석할 식단 기록이 없습니다.',
         '첫 식단을 추가하면 오늘 섭취량과 탄단지 균형을 요약해드릴게요.',
@@ -37,6 +46,10 @@ class ReportGenerator {
           ? '오늘은 식사 기록 ${summary.records.length}개가 저장되어 있습니다.'
           : '오늘은 $mealLabels 기록 ${summary.records.length}개가 저장되어 있습니다.',
     ];
+    if (skippedMealTypes.isNotEmpty) {
+      final skippedLabels = skippedMealTypes.map(_mealTypeLabel).join(', ');
+      messages.add('$skippedLabels은 건너뜀으로 기록되어 누락이 아닌 생활 패턴으로 참고합니다.');
+    }
 
     if (target <= 0) {
       messages.add('하루 참고 목표가 아직 설정되지 않았습니다. 설정 화면에서 목표를 입력해보세요.');
@@ -123,6 +136,7 @@ class ReportGenerator {
         MealTimingAnalyzer.generateFeedback(
           records: summary.records,
           sleepTime: healthProfile.sleepTime,
+          skippedMealTypes: skippedMealTypes,
         ).where((message) => !message.contains('의학적 판단')),
       );
     }

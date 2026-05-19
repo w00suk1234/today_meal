@@ -6,9 +6,16 @@ class MealTimingAnalyzer {
   static List<String> generateFeedback({
     required List<MealRecord> records,
     required String sleepTime,
+    Set<String> skippedMealTypes = const {},
     int dinnerSleepGapHours = 3,
   }) {
     if (records.isEmpty) {
+      if (skippedMealTypes.isNotEmpty) {
+        final labels = skippedMealTypes.map(_label).join(', ');
+        return [
+          '오늘 $labels은 건너뜀으로 기록했어요. 남은 식사는 컨디션에 맞춰 기록해보세요.',
+        ];
+      }
       return ['오늘은 아직 식사 시간 기록이 없습니다. 규칙적인 식사 패턴을 기록해보세요.'];
     }
 
@@ -17,7 +24,9 @@ class MealTimingAnalyzer {
     final messages = <String>[];
 
     for (final type in ['breakfast', 'lunch', 'dinner']) {
-      if (!records.any((record) => record.mealType == type)) {
+      if (skippedMealTypes.contains(type)) {
+        messages.add('오늘 ${_label(type)}은 건너뜀으로 기록되어 있습니다.');
+      } else if (!records.any((record) => record.mealType == type)) {
         messages.add('오늘은 ${_label(type)} 기록이 없습니다. 규칙적인 식사 패턴을 유지해보세요.');
       }
     }

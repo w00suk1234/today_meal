@@ -33,11 +33,13 @@ class ReportScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = AppScope.of(context);
     final summary = controller.todaySummary;
+    final skippedMealTypes = controller.skippedMealTypesFor(summary.dateKey);
     final messages = ReportGenerator.generateAdvancedDailyReport(
       summary: summary,
       profile: controller.profile,
       healthProfile: controller.healthProfile,
       weightRecords: controller.weightRecords,
+      skippedMealTypes: skippedMealTypes,
     );
     final weekly = _weeklySummaries(controller);
     final streak = _streakDays(controller);
