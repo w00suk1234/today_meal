@@ -8,6 +8,7 @@ import 'core/utils/health_calculator.dart';
 import 'core/utils/nutrition_calculator.dart';
 import 'data/local/local_storage_service.dart';
 import 'data/models/ai_meal_coach_result.dart';
+import 'data/models/activity_record.dart';
 import 'data/models/daily_summary.dart';
 import 'data/models/food_item.dart';
 import 'data/models/health_profile.dart';
@@ -17,6 +18,7 @@ import 'data/models/user_profile.dart';
 import 'data/models/weight_log.dart';
 import 'data/models/weight_record.dart';
 import 'data/repositories/ai_meal_coach_cache_repository.dart';
+import 'data/repositories/activity_repository.dart';
 import 'data/repositories/food_repository.dart';
 import 'data/repositories/health_repository.dart';
 import 'data/repositories/meal_repository.dart';
@@ -139,6 +141,7 @@ class AppScope extends InheritedNotifier<TodayMealController> {
 class TodayMealController extends ChangeNotifier {
   TodayMealController({
     required this.foodRepository,
+    required this.activityRepository,
     required this.mealRepository,
     required this.mealStatusRepository,
     required this.userRepository,
@@ -148,6 +151,7 @@ class TodayMealController extends ChangeNotifier {
     required this.visionFoodService,
     required this.mealCoachService,
     required this.foods,
+    required this.activities,
     required this.records,
     required this.mealStatuses,
     required this.profile,
@@ -161,6 +165,7 @@ class TodayMealController extends ChangeNotifier {
   });
 
   final FoodRepository foodRepository;
+  final ActivityRepository activityRepository;
   final MealRepository mealRepository;
   final MealStatusRepository mealStatusRepository;
   final UserRepository userRepository;
@@ -170,6 +175,7 @@ class TodayMealController extends ChangeNotifier {
   final VisionFoodService visionFoodService;
   final MealCoachService mealCoachService;
   final List<FoodItem> foods;
+  List<ActivityRecord> activities;
   List<MealRecord> records;
   List<MealStatusRecord> mealStatuses;
   UserProfile profile;
@@ -188,6 +194,7 @@ class TodayMealController extends ChangeNotifier {
   static Future<TodayMealController> create() async {
     final storage = await LocalStorageService.create();
     final foodRepository = FoodRepository();
+    final activityRepository = ActivityRepository(storage);
     final mealRepository = MealRepository(storage);
     final mealStatusRepository = MealStatusRepository(storage);
     final userRepository = UserRepository(storage);
@@ -204,6 +211,7 @@ class TodayMealController extends ChangeNotifier {
     final todayDateKey = AppDateUtils.dateKey(DateTime.now());
     return TodayMealController(
       foodRepository: foodRepository,
+      activityRepository: activityRepository,
       mealRepository: mealRepository,
       mealStatusRepository: mealStatusRepository,
       userRepository: userRepository,
@@ -213,6 +221,7 @@ class TodayMealController extends ChangeNotifier {
       visionFoodService: visionFoodService,
       mealCoachService: mealCoachService,
       foods: await foodRepository.loadFoods(),
+      activities: await activityRepository.getAll(),
       records: await mealRepository.loadRecords(),
       mealStatuses: await mealStatusRepository.getAll(),
       profile: await userRepository.loadProfile(),
@@ -249,6 +258,30 @@ class TodayMealController extends ChangeNotifier {
 
   bool isMealSkipped(String dateKey, String mealType) {
     return skippedMealTypesFor(dateKey).contains(mealType);
+  }
+
+  List<ActivityRecord> activitiesFor(String dateKey) {
+    final next =
+        activities.where((activity) => activity.dateKey == dateKey).toList();
+    next.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return next;
+  }
+
+  Map<String, dynamic> activitySummaryFor(String dateKey) {
+    final records = activitiesFor(dateKey);
+    final types = records.map((record) => record.type).toSet().toList();
+    return {
+      'activityCount': records.length,
+      'totalDurationMinutes': records.fold<int>(
+        0,
+        (sum, record) => sum + record.durationMinutes,
+      ),
+      'types': types,
+      'mainIntensity': _mainActivityIntensity(records),
+      'hasActivityMemo': records.any(
+        (record) => record.memo != null && record.memo!.trim().isNotEmpty,
+      ),
+    };
   }
 
   WeightRecord? get latestWeightRecord =>
@@ -387,6 +420,25 @@ class TodayMealController extends ChangeNotifier {
   Future<void> clearMealStatus(String mealType, {DateTime? date}) async {
     final targetDate = date ?? DateTime.now();
     await _clearMealStatusFor(AppDateUtils.dateKey(targetDate), mealType);
+    notifyListeners();
+  }
+
+  Future<void> addActivity(ActivityRecord record) async {
+    if (record.durationMinutes <= 0) {
+      throw ArgumentError.value(
+        record.durationMinutes,
+        'durationMinutes',
+        'Duration must be positive.',
+      );
+    }
+    await activityRepository.add(record);
+    activities = await activityRepository.getAll();
+    notifyListeners();
+  }
+
+  Future<void> removeActivity(String id) async {
+    await activityRepository.delete(id);
+    activities = await activityRepository.getAll();
     notifyListeners();
   }
 
@@ -642,6 +694,7 @@ class TodayMealController extends ChangeNotifier {
       'mealCount': summary.records.length,
       'recordedMealTypes': mealTypes.toList(),
       'skippedMealTypes': skippedMealTypes.toList(),
+      'activityContext': activitySummaryFor(summary.dateKey),
     };
   }
 
@@ -707,6 +760,19 @@ class TodayMealController extends ChangeNotifier {
   Future<void> _clearMealStatusFor(String dateKey, String mealType) async {
     await mealStatusRepository.clear(dateKey: dateKey, mealType: mealType);
     mealStatuses = await mealStatusRepository.getAll();
+  }
+
+  String _mainActivityIntensity(List<ActivityRecord> records) {
+    if (records.isEmpty) {
+      return 'none';
+    }
+    if (records.any((record) => record.intensity == 'hard')) {
+      return 'hard';
+    }
+    if (records.any((record) => record.intensity == 'moderate')) {
+      return 'moderate';
+    }
+    return 'light';
   }
 }
 
