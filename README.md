@@ -1,6 +1,6 @@
 # TodayMeal
 
-- Demo: [https://today-meal.vercel.app](https://today-meal.vercel.app/)
+- Demo: [https://today-meal-ai.vercel.app](https://today-meal-ai.vercel.app/)
 - Repository: [https://github.com/w00suk1234/today_meal](https://github.com/w00suk1234/today_meal)
 
 ## 프로젝트 소개
@@ -81,7 +81,7 @@ Chrome에서 AI API 주소와 함께 실행하는 예시는 아래와 같습니�
 flutter run -d chrome \
   --dart-define=SUPABASE_URL=https://your-project.supabase.co \
   --dart-define=SUPABASE_ANON_KEY=your-public-anon-key \
-  --dart-define=AI_API_BASE_URL=https://today-meal.vercel.app
+  --dart-define=AI_API_BASE_URL=https://today-meal-ai.vercel.app
 ```
 
 웹 빌드는 아래 명령으로 생성합니다.
@@ -94,7 +94,7 @@ flutter build web
 
 ## 배포 주소 또는 데모 주소
 
-- Web demo: [https://today-meal.vercel.app](https://today-meal.vercel.app)
+- Web demo: [https://today-meal-ai.vercel.app](https://today-meal-ai.vercel.app)
 
 ## 개선 예정 사항
 
